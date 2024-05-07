@@ -1,33 +1,37 @@
 # Registry-Tweaks-Scripts
+
 Contains registry tweaks and simple batch scripts
 
-I will basically divide it into 2 directories/sections called cmds and reg_tweaks which I commonly use when creating custom up-to-date windows 10 ISO using WinToolkit,NTLite and W10UI. I will include direct links for directx9, netfx35 and vc++ runtimes repacks etc.
+I will basically divide it into 2 directories/sections called cmds and reg_tweaks which I commonly use when creating custom up-to-date windows 10 or 11 ISO using WinToolkit,NTLite and W10UI. I will include direct links for DirectX9, NetFX35 and VC++ runtimes repacks etc.
 
-Thank you abbodi1406, Majorgeek, WinAero for reg tweaks, repacks and scripts.
+Thank you abbodi1406, Majorgeeks, WinAero for reg tweaks, repacks and scripts.
 
-<ol>
-<li>
-[DirectX Repack](https://forums.mydigitallife.net/threads/repack-directx-end-user-runtime-june-2010.84785/) Repack made by [@abbodi1406](https://github.com/abbodi1406)
-</li>
-<li>
-[Netfx35W10](https://github.com/abbodi1406/dotNetFx35W10) Repack made by [@abbodi1406](https://github.com/abbodi1406)
-</li>
-<li>
-[Microsoft VC++ redist runtimes](https://github.com/abbodi1406/vcredist) Repack made by [@abbodi1406](https://github.com/abbodi1406)
-</li>
-<li>
-[NetfxW7, applicable to Win 7 only](https://github.com/abbodi1406/dotNetFx4xW7) Repack made by [@abbodi1406](https://github.com/abbodi1406)
-</li>
-<li>
-[MajorGeeks Registry Tweaks Pack covering Win 7-11](https://github.com/MajorGeek/MajorGeeks-Windows-Tweaks) Made by [Majorgeek](https://github.com/MajorGeek)
-</li>
-<li>
-[WHDownloader](https://forums.mydigitallife.net/threads/whdownloader-download.66243/) made by [@abbodi1406](https://github.com/abbodi1406) Used for downloading offline msu/cabs files applicable to windows and office.
-</li>
-<li>
-[Unlock hidden power options Win 10](https://gist.github.com/Nt-gm79sp/1f8ea2c2869b988e88b4fbc183731693)
-</li>
-<li>[Unlock hidden power options Win 7](https://gist.github.com/theultramage/cbdfdbb733d4a5b7d2669a6255b4b94b)</li>
-</ol>
+- [DirectX Repack][def] Repack made by [@abbodi1406][def2]
+
+- [Netfx35W10][def3] Repack made by [@abbodi1406][def2]
+
+- [Microsoft VC++ redist runtimes][def4] Repack made by [@abbodi1406][def2]
+
+- [NetfxW7, applicable to Win 7 only][def5] Repack made by [@abbodi1406][def2]
+
+- [MajorGeeks Registry Tweaks Pack covering Win 7-11][def6] Made by [Majorgeek][def7]
+
+- [WHDownloader][def8] made by [@abbodi1406][def2] Used for downloading offline msu/cabs files applicable to windows and office.
+
+- [Unlock hidden power options Win 10][def9]
+- [Unlock hidden power options Win 7][def10]
 
 Feel free to suggest any changes.
+
+You can find all regfiles and cmd scripts in this directory `cmds` and `registry\regfiles\Windows(Version)`
+
+[def]: https://forums.mydigitallife.net/threads/repack-directx-end-user-runtime-june-2010.84785/
+[def2]: https://github.com/abbodi1406
+[def3]: https://github.com/abbodi1406/dotNetFx35W10
+[def4]: https://github.com/abbodi1406/vcredist
+[def5]: https://github.com/abbodi1406/dotNetFx4xW7
+[def6]: https://github.com/MajorGeek/MajorGeeks-Windows-Tweaks
+[def7]: https://github.com/MajorGeek
+[def8]: https://forums.mydigitallife.net/threads/whdownloader-download.66243/
+[def9]: https://gist.github.com/Nt-gm79sp/1f8ea2c2869b988e88b4fbc183731693
+[def10]: https://gist.github.com/theultramage/cbdfdbb733d4a5b7d2669a6255b4b94b
