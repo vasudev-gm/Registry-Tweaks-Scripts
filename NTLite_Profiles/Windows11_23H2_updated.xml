@@ -238,7 +238,7 @@
 			<Task>registry_install.wim_02_Professional_64</Task>
 			<Task>postsetup_install.wim_02_Professional_64</Task>
 		</ImageTasks>
-		<AutoIsoFile>C:\Users\Vasudev\Desktop\NTLite_W11.iso</AutoIsoFile>
+		<AutoIsoFile>C:\NTLite_W11.iso</AutoIsoFile>
 		<AutoIsoLabel>Win 11</AutoIsoLabel>
 		<AutoSplitSize>4000</AutoSplitSize>
 	</ApplyOptions>
