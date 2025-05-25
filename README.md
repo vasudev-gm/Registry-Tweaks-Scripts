@@ -25,6 +25,11 @@ Feel free to suggest any changes.
 
 You can find all regfiles and cmd scripts in this directory `cmds` and `registry\regfiles\Windows(Version)`
 
+Update: I stopped using NTLite because it was causing some side-effects with broken start menu and other issues. I now use WinToolkit, W10UI and unattended file for creating custom ISOs. I have started using VHDXs formatted with ReFS for testing purposes.
+
+To make VHDX files smaller after integration use sdelete from Sysinternals Suite. It is a command line tool that securely deletes files and cleans up free space on NTFS volumes. It can also be used to zero out free space in VHDX files. Afterwards, run retrim on the VHDX file to reclaim the space.
+
+
 [def]: https://forums.mydigitallife.net/threads/repack-directx-end-user-runtime-june-2010.84785/
 [def2]: https://github.com/abbodi1406
 [def3]: https://github.com/abbodi1406/dotNetFx35W10
