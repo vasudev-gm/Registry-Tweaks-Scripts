@@ -20,7 +20,8 @@ Thank you abbodi1406, Majorgeeks, WinAero for reg tweaks, repacks and scripts.
 
 - [Unlock hidden power options Win 10][def9]
 - [Unlock hidden power options Win 7][def10]
-
+- [DirectX Repack by htfx][def11]
+- [Automated Script to download and install VC++ Runtimes][def12]
 Feel free to suggest any changes.
 
 You can find all regfiles and cmd scripts in this directory `cmds` and `registry\regfiles\Windows(Version)`
@@ -28,6 +29,8 @@ You can find all regfiles and cmd scripts in this directory `cmds` and `registry
 Update: I stopped using NTLite because it was causing some side-effects with broken start menu and other issues. I now use WinToolkit, W10UI and unattended file for creating custom ISOs. I have started using VHDXs formatted with ReFS for testing purposes.
 
 To make VHDX files smaller after integration use sdelete from Sysinternals Suite. It is a command line tool that securely deletes files and cleans up free space on NTFS volumes. It can also be used to zero out free space in VHDX files. Afterwards, run retrim on the VHDX file to reclaim the space.
+
+Added scripts to download Brave, DX/VC++ Redist and IrfanView to get latest versions within unattended.xml file
 
 
 [def]: https://forums.mydigitallife.net/threads/repack-directx-end-user-runtime-june-2010.84785/
@@ -40,3 +43,5 @@ To make VHDX files smaller after integration use sdelete from Sysinternals Suite
 [def8]: https://forums.mydigitallife.net/threads/whdownloader-download.66243/
 [def9]: https://gist.github.com/Nt-gm79sp/1f8ea2c2869b988e88b4fbc183731693
 [def10]: https://gist.github.com/theultramage/cbdfdbb733d4a5b7d2669a6255b4b94b
+[def11]: https://github.com/stdin82/htfx
+[def12]: https://github.com/exurd/Windows-Sandbox-Tools/blob/vcredist_aio_script/Installer%20Scripts/Install%20VC%20Redist%20AIO.ps1
