@@ -22,6 +22,7 @@ Thank you abbodi1406, Majorgeeks, WinAero for reg tweaks, repacks and scripts.
 - [Unlock hidden power options Win 7][def10]
 - [DirectX Repack by htfx][def11]
 - [Automated Script to download and install VC++ Runtimes][def12]
+
 Feel free to suggest any changes.
 
 You can find all regfiles and cmd scripts in this directory `cmds` and `registry\regfiles\Windows(Version)`
