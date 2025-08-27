@@ -35,7 +35,6 @@ Added scripts to download Brave, DX/VC++ Redist and IrfanView to get latest vers
 
 Thanks to abbodi1406, htfx, exurd and ThioJoe for scripts and repacks
 
-
 [def]: https://forums.mydigitallife.net/threads/repack-directx-end-user-runtime-june-2010.84785/
 [def2]: https://github.com/abbodi1406
 [def3]: https://github.com/abbodi1406/dotNetFx35W10
