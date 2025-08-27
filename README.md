@@ -33,6 +33,8 @@ To make VHDX files smaller after integration use sdelete from Sysinternals Suite
 
 Added scripts to download Brave, DX/VC++ Redist and IrfanView to get latest versions within unattended.xml file
 
+Thanks to abbodi1406, htfx, exurd and ThioJoe for scripts and repacks
+
 
 [def]: https://forums.mydigitallife.net/threads/repack-directx-end-user-runtime-june-2010.84785/
 [def2]: https://github.com/abbodi1406
