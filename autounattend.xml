@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
-	<!--https://schneegans.de/windows/unattend-generator/?LanguageMode=Interactive&ProcessorArchitecture=x86&ProcessorArchitecture=amd64&ProcessorArchitecture=arm64&BypassRequirementsCheck=true&BypassNetworkCheck=true&ComputerNameMode=Random&CompactOsMode=Default&TimeZoneMode=Implicit&PartitionMode=Interactive&DiskAssertionMode=Skip&WindowsEditionMode=Interactive&InstallFromMode=Automatic&UserAccountMode=InteractiveLocal&PasswordExpirationMode=Unlimited&LockoutMode=Default&HideFiles=HiddenSystem&ShowFileExtensions=true&ClassicContextMenu=true&LaunchToThisPC=true&TaskbarSearch=Icon&TaskbarIconsMode=Default&DisableWidgets=true&LeftTaskbar=true&HideTaskViewButton=true&ShowAllTrayIcons=true&DisableBingResults=true&StartTilesMode=Default&StartPinsMode=Empty&DisableFastStartup=true&DisableSystemRestore=true&EnableLongPaths=true&HardenSystemDriveAcl=true&AllowPowerShellScripts=true&DisableLastAccess=true&PreventAutomaticReboot=true&DisableAppSuggestions=true&PreventDeviceEncryption=true&HideEdgeFre=true&DisableEdgeStartupBoost=true&MakeEdgeUninstallable=true&DeleteWindowsOld=true&EffectsMode=Custom&ControlAnimations=true&DWMAeroPeekEnabled=true&MenuAnimation=true&TooltipAnimation=true&SelectionFade=true&ListviewShadow=true&ThumbnailsOrIcon=true&DragFullWindows=true&ComboBoxAnimation=true&FontSmoothing=true&ListBoxSmoothScrolling=true&DropShadow=true&DesktopIconsMode=Custom&IconRecycleBin=true&IconThisPC=true&WifiMode=Interactive&ExpressSettings=DisableAll&KeysMode=Skip&StickyKeysMode=Default&ColorMode=Default&WallpaperMode=Default&Remove3DViewer=true&RemoveBingSearch=true&RemoveClipchamp=true&RemoveClock=true&RemoveCortana=true&RemoveDevHome=true&RemoveFamily=true&RemoveFeedbackHub=true&RemoveInternetExplorer=true&RemoveMailCalendar=true&RemoveMaps=true&RemoveMixedReality=true&RemoveZuneVideo=true&RemoveNews=true&RemoveOffice365=true&RemoveOneDrive=true&RemoveOneNote=true&RemoveOutlook=true&RemovePaint3D=true&RemovePeople=true&RemovePhotos=true&RemovePowerAutomate=true&RemoveSkype=true&RemoveSolitaire=true&RemoveTeams=true&RemoveToDo=true&RemoveWallet=true&RemoveWeather=true&RemoveZuneMusic=true&RemoveWordPad=true&RemoveYourPhone=true&WdacMode=Skip-->
+	<!--https://schneegans.de/windows/unattend-generator/?LanguageMode=Interactive&ProcessorArchitecture=x86&ProcessorArchitecture=amd64&ProcessorArchitecture=arm64&BypassRequirementsCheck=true&BypassNetworkCheck=true&ComputerNameMode=Random&CompactOsMode=Default&TimeZoneMode=Implicit&PartitionMode=Interactive&DiskAssertionMode=Skip&WindowsEditionMode=Interactive&InstallFromMode=Automatic&PEMode=Default&UserAccountMode=InteractiveLocal&PasswordExpirationMode=Unlimited&LockoutMode=Default&HideFiles=HiddenSystem&ShowFileExtensions=true&ClassicContextMenu=true&LaunchToThisPC=true&TaskbarSearch=Icon&TaskbarIconsMode=Default&DisableWidgets=true&LeftTaskbar=true&HideTaskViewButton=true&ShowAllTrayIcons=true&DisableBingResults=true&StartTilesMode=Default&StartPinsMode=Empty&DisableFastStartup=true&DisableSystemRestore=true&EnableLongPaths=true&HardenSystemDriveAcl=true&AllowPowerShellScripts=true&DisableLastAccess=true&PreventAutomaticReboot=true&DisableAppSuggestions=true&PreventDeviceEncryption=true&HideEdgeFre=true&DisableEdgeStartupBoost=true&MakeEdgeUninstallable=true&DeleteWindowsOld=true&EffectsMode=Custom&ControlAnimations=true&DWMAeroPeekEnabled=true&MenuAnimation=true&TooltipAnimation=true&SelectionFade=true&ListviewShadow=true&ThumbnailsOrIcon=true&DragFullWindows=true&ComboBoxAnimation=true&FontSmoothing=true&ListBoxSmoothScrolling=true&DropShadow=true&DesktopIconsMode=Custom&IconRecycleBin=true&IconThisPC=true&StartFoldersMode=Default&WifiMode=Interactive&ExpressSettings=DisableAll&LockKeysMode=Skip&StickyKeysMode=Default&ColorMode=Default&WallpaperMode=Default&LockScreenMode=Default&Remove3DViewer=true&RemoveBingSearch=true&RemoveClipchamp=true&RemoveClock=true&RemoveCortana=true&RemoveDevHome=true&RemoveFamily=true&RemoveFeedbackHub=true&RemoveInternetExplorer=true&RemoveMailCalendar=true&RemoveMaps=true&RemoveMixedReality=true&RemoveZuneVideo=true&RemoveNews=true&RemoveOffice365=true&RemoveOneDrive=true&RemoveOneNote=true&RemoveOutlook=true&RemovePaint3D=true&RemovePeople=true&RemovePhotos=true&RemovePowerAutomate=true&RemoveSkype=true&RemoveSolitaire=true&RemoveTeams=true&RemoveToDo=true&RemoveWallet=true&RemoveWeather=true&RemoveZuneMusic=true&RemoveWordPad=true&RemoveYourPhone=true&FirstLogonScript0=reg+add+%22HKLM%5CSOFTWARE%5CPolicies%5CMicrosoft%5CWindows+NT%5CSystemRestore%22+%2Fv+%22DisableConfig%22+%2Ft+%22REG_DWORD%22+%2Fd+%221%22+%2Ff%0D%0Areg+add+%22HKLM%5CSOFTWARE%5CPolicies%5CMicrosoft%5CWindows+NT%5CSystemRestore%22+%2Fv+%22DisableSR+%22+%2Ft+%22REG_DWORD%22+%2Fd+%221%22+%2Ff%0D%0Areg+add+%22HKLM%5CSOFTWARE%5CMicrosoft%5CWindows+NT%5CCurrentVersion%5CSystemRestore%22+%2Fv+%22DisableConfig%22+%2Ft+%22REG_DWORD%22+%2Fd+%221%22+%2Ff%0D%0Areg+add+%22HKLM%5CSOFTWARE%5CMicrosoft%5CWindows+NT%5CCurrentVersion%5CSystemRestore%22+%2Fv+%22DisableSR+%22+%2Ft+%22REG_DWORD%22+%2Fd+%221%22+%2Ff&FirstLogonScriptType0=Cmd&FirstLogonScript1=DISM.exe+%2FOnline+%2FSet-ReservedStorageState+%2FState%3ADisabled&FirstLogonScriptType1=Cmd&FirstLogonScript2=%40echo+off%0D%0Acls%0D%0A%0D%0Aset+x86%3D%22%25SYSTEMROOT%25%5CSystem32%5COneDriveSetup.exe%22%0D%0Aset+x64%3D%22%25SYSTEMROOT%25%5CSysWOW64%5COneDriveSetup.exe%22%0D%0A%0D%0Aecho+Closing+OneDrive+process.%0D%0Aecho.%0D%0Ataskkill+%2Ff+%2Fim+OneDrive.exe+%3E+NUL+2%3E%261%0D%0Aping+127.0.0.1+-n+5+%3E+NUL+2%3E%261%0D%0A%0D%0Aecho+Uninstalling+OneDrive.%0D%0Aecho.%0D%0Aif+exist+%25x64%25+%28%0D%0A%25x64%25+%2Funinstall%0D%0A%29+else+%28%0D%0A%25x86%25+%2Funinstall%0D%0A%29%0D%0Aping+127.0.0.1+-n+5+%3E+NUL+2%3E%261%0D%0A%0D%0Aecho+Removing+OneDrive+leftovers.%0D%0Aecho.%0D%0Ard+%22%25USERPROFILE%25%5COneDrive%22+%2FQ+%2FS+%3E+NUL+2%3E%261%0D%0Ard+%22C%3A%5COneDriveTemp%22+%2FQ+%2FS+%3E+NUL+2%3E%261%0D%0Ard+%22%25LOCALAPPDATA%25%5CMicrosoft%5COneDrive%22+%2FQ+%2FS+%3E+NUL+2%3E%261%0D%0Ard+%22%25PROGRAMDATA%25%5CMicrosoft+OneDrive%22+%2FQ+%2FS+%3E+NUL+2%3E%261+%0D%0A%0D%0Aecho+Removing+OneDrive+from+the+Explorer+Side+Panel.%0D%0Aecho.%0D%0AREG+DELETE+%22HKEY_CLASSES_ROOT%5CCLSID%5C%7B018D5C66-4533-4307-9B53-224DE2ED1FE6%7D%22+%2Ff+%3E+NUL+2%3E%261%0D%0AREG+DELETE+%22HKEY_CLASSES_ROOT%5CWow6432Node%5CCLSID%5C%7B018D5C66-4533-4307-9B53-224DE2ED1FE6%7D%22+%2Ff+%3E+NUL+2%3E%261%0D%0A%0D%0Aexit&FirstLogonScriptType2=Cmd&FirstLogonScript3=fsutil+behavior+set+disable8dot3+1&FirstLogonScriptType3=Cmd&FirstLogonScript4=Write-Host+%22Installing+.NET+Framework+3.5+from+ISO...%22%0D%0Aforeach%28+%24drive+in+%5BSystem.IO.DriveInfo%5D%3A%3AGetDrives%28%29+%29+%7B%0D%0A++++if%28+%24found+%3D+Join-Path+-Path+%24drive.RootDirectory+-ChildPath+%27sources%5Csxs%27+-Resolve+-ErrorAction+%27SilentlyContinue%27+%29+%7B%0D%0A++++++++Enable-WindowsOptionalFeature+-Online+-FeatureName+%27NetFx3%27+-Source+%24found+-NoRestart%3B%0D%0A++++++++return%3B%0D%0A++++%7D%0D%0A%7D%0D%0A%27Cannot+find+any+files+that+match+pattern.%27+%7C+Write-Warning%3B%0D%0AExit&FirstLogonScriptType4=Ps1&FirstLogonScript5=%23+URLs+for+the+latest+Visual+C%2B%2B+and+DirectX+Redistributable%0D%0AWrite-Host+%22Installing+latest+Visual+C%2B%2B+and+DirectX+Redistributable+from+abbodi1406+and+htfx...%22%0D%0A%24urls+%3D+%40%28%0D%0A++++%22https%3A%2F%2Fgithub.com%2Fabbodi1406%2Fvcredist%2Freleases%2Flatest%2Fdownload%2FVisualCppRedist_AIO_x86_x64.exe%22++%23+https%3A%2F%2Fgithub.com%2Fabbodi1406%2Fvcredist%0D%0A++++%22https%3A%2F%2Fgithub.com%2Fstdin82%2Fhtfx%2Freleases%2Flatest%2Fdownload%2FDirectX_Redist_Repack_x86_x64.exe%22++%23+https%3A%2F%2Fgithub.com%2Fstdin82%2Fhtfx%0D%0A%0D%0A%29%0D%0A%0D%0A%23+VisualCppRedist+AIO+does+not+include+any+ARM64+installers%2C%0D%0A%23+and+it%27s+not+planned+to+have+ARM64+support.%0D%0A%23+https%3A%2F%2Fgithub.com%2Fabbodi1406%2Fvcredist%2Fissues%2F110%0D%0Aif+%28%24env%3APROCESSOR_ARCHITECTURE+-eq+%27ARM64%27%29+%7B%0D%0A++++%24urls+%2B%3D+%22https%3A%2F%2Faka.ms%2Fvs%2F17%2Frelease%2Fvc_redist.arm64.exe%22%0D%0A%7D%0D%0A%0D%0A%23+Directory+to+save+the+downloads%0D%0A%24downloadPath+%3D+%22%24env%3ATEMP%22%0D%0A%0D%0A%23+https%3A%2F%2Fstackoverflow.com%2Fa%2F25127597%0D%0AFunction+Get-RedirectedUrl+%7B%0D%0A++++Param+%28%0D%0A++++++++%5BParameter%28Mandatory%3D%24true%29%5D%0D%0A++++++++%5BString%5D%24URL%0D%0A++++%29%0D%0A++++%24request+%3D+%5BSystem.Net.WebRequest%5D%3A%3ACreate%28%24URL%29%0D%0A++++%24request.Method+%3D+%22HEAD%22%0D%0A++++%24request.AllowAutoRedirect%3D%24false%0D%0A++++%24response%3D%24request.GetResponse%28%29%0D%0A%0D%0A++++If+%28%24response.StatusCode+-eq+%22Found%22%29%0D%0A++++%7B%0D%0A++++++++%24response.GetResponseHeader%28%22Location%22%29%0D%0A++++%7D%0D%0A%7D%0D%0A%0D%0A%23+To+improve+download+performance%2C+the+progress+bar+is+suppressed.+%5B2%2C+6%5D%0D%0A%24ProgressPreference+%3D+%27SilentlyContinue%27%0D%0A%0D%0A%23+There+is+a+bug+that+makes+MSI+installs+take+*FOREVER*+to+finish.%0D%0A%23+https%3A%2F%2Fgithub.com%2Fmicrosoft%2FWindows-Sandbox%2Fissues%2F68%0D%0A%23+There+is+a+solution%3A+temporarily+turn+off+Smart+App+Control.%0D%0A%23+Thanks%2C+Traxof63%21%0D%0AFunction+Set-SmartAppControl+%7B%0D%0A++++Param+%28%0D%0A++++++++%5BParameter%28Mandatory%3D%24true%29%5D%0D%0A++++++++%5BString%5D%24Num%0D%0A++++%29%0D%0A++++Write-Host+%22Setting+CI+Policy+%27VerifiedAndReputablePolicyState%27+to+%24Num...%22%0D%0A++++Set-ItemProperty+-Path+%22HKLM%3A%5CSYSTEM%5CCurrentControlSet%5CControl%5CCI%5CPolicy%22+-Name+%22VerifiedAndReputablePolicyState%22+-Value+%24Num%0D%0A++++%23+Only+problem+is%2C+CiTool+does+not+exit+without+user+interaction.+This+means%0D%0A++++%23+that+we+create+a+process+that+uses+around+664k+of+Memory...+Ugh%2C+Microsoft%21%0D%0A++++Start-Process+-FilePath+%22CiTool.exe%22+-ArgumentList+%22-r%22+-WindowStyle+Hidden%0D%0A%7D%0D%0A%0D%0ASet-SmartAppControl+%220%22%0D%0A%0D%0Aforeach+%28%24url+in+%24urls%29+%7B%0D%0A++++%24redirectUrl+%3D+%5BSystem.IO.Path%5D%3A%3AGetFileName%28%28Get-RedirectedUrl+%24url%29%29%0D%0A++++%24fileName+%3D+%24redirectUrl.Split%28%27%2F%27%29%5B-1%5D%0D%0A++++%24filePath+%3D+Join-Path+%24downloadPath+%24fileName%0D%0A%0D%0A++++Write-Host+%22Downloading+%24fileName...%22%0D%0A++++Write-Host+%24filePath%0D%0A++++%23+Download+the+file+without+a+progress+bar+%5B1%2C+4%5D%0D%0A++++Invoke-WebRequest+-Uri+%24url+-OutFile+%24filePath%0D%0A%0D%0A++++if+%28Test-Path+%24filePath%29+%7B%0D%0A++++++++Write-Host+%22Installing+%24fileName...%22%0D%0A++++++++%23+Silently+install+the+redistributable+and+wait+for+it+to+complete+%5B3%2C+5%2C+9%5D%0D%0A++++++++if+%28%24url+-match+%22https%3A%2F%2Faka.ms%2Fvs%2F17%2Frelease%2Fvc_redist.arm64.exe%22%29+%7B%0D%0A++++++++++++Start-Process+-FilePath+%24filePath+-ArgumentList+%22%2Finstall+%2Fquiet+%2Fnorestart%22+-Wait%0D%0A++++++++%7D+else+%7B%0D%0A++++++++++++Start-Process+-FilePath+%24filePath+-ArgumentList+%22%2Fai+%2Fgm2%22+-Wait%0D%0A++++++++%7D%0D%0A++++++++Write-Host+%22%24fileName+has+been+installed.%22%0D%0A++++++++%23+Optional%3A+Remove+the+installer+after+installation%0D%0A++++++++%23+Remove-Item+-Path+%24filePath%0D%0A++++%7D+else+%7B%0D%0A++++++++Write-Host+%22Error%3A+Failed+to+download+%24fileName.%22%0D%0A++++%7D%0D%0A%7D%0D%0A%0D%0A%23+Turn+Smart+App+Control+back+on%0D%0ASet-SmartAppControl+%221%22%0D%0A%0D%0A%23+Restore+the+default+progress+preference%0D%0A%24ProgressPreference+%3D+%27Continue%27%0D%0A%0D%0AWrite-Host+%22Script+execution+finished.%22%0D%0AExit&FirstLogonScriptType5=Ps1&FirstLogonScript6=winget+install+Brave.Brave+%2D%2Daccept-package-agreements+%2D%2Daccept-source-agreements&FirstLogonScriptType6=Cmd&RestartExplorer=true&WdacMode=Skip-->
 	<settings pass="offlineServicing"></settings>
 	<settings pass="windowsPE">
 		<component name="Microsoft-Windows-Setup" processorArchitecture="x86" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
@@ -491,6 +491,159 @@ $key = 'Registry::HKLM\SOFTWARE\Microsoft\PolicyManager\current\device\Start';
 New-Item -Path $key -ItemType 'Directory' -ErrorAction 'SilentlyContinue';
 Set-ItemProperty -LiteralPath $key -Name 'ConfigureStartPins' -Value $json -Type 'String';
 		</File>
+		<File path="C:\Windows\Setup\Scripts\unattend-01.cmd">
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\SystemRestore" /v "DisableConfig" /t "REG_DWORD" /d "1" /f
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\SystemRestore" /v "DisableSR " /t "REG_DWORD" /d "1" /f
+reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" /v "DisableConfig" /t "REG_DWORD" /d "1" /f
+reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" /v "DisableSR " /t "REG_DWORD" /d "1" /f
+		</File>
+		<File path="C:\Windows\Setup\Scripts\unattend-02.cmd">
+DISM.exe /Online /Set-ReservedStorageState /State:Disabled
+		</File>
+		<File path="C:\Windows\Setup\Scripts\unattend-03.cmd">
+@echo off
+cls
+
+set x86="%SYSTEMROOT%\System32\OneDriveSetup.exe"
+set x64="%SYSTEMROOT%\SysWOW64\OneDriveSetup.exe"
+
+echo Closing OneDrive process.
+echo.
+taskkill /f /im OneDrive.exe &gt; NUL 2&gt;&amp;1
+ping 127.0.0.1 -n 5 &gt; NUL 2&gt;&amp;1
+
+echo Uninstalling OneDrive.
+echo.
+if exist %x64% (
+%x64% /uninstall
+) else (
+%x86% /uninstall
+)
+ping 127.0.0.1 -n 5 &gt; NUL 2&gt;&amp;1
+
+echo Removing OneDrive leftovers.
+echo.
+rd "%USERPROFILE%\OneDrive" /Q /S &gt; NUL 2&gt;&amp;1
+rd "C:\OneDriveTemp" /Q /S &gt; NUL 2&gt;&amp;1
+rd "%LOCALAPPDATA%\Microsoft\OneDrive" /Q /S &gt; NUL 2&gt;&amp;1
+rd "%PROGRAMDATA%\Microsoft OneDrive" /Q /S &gt; NUL 2&gt;&amp;1 
+
+echo Removing OneDrive from the Explorer Side Panel.
+echo.
+REG DELETE "HKEY_CLASSES_ROOT\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" /f &gt; NUL 2&gt;&amp;1
+REG DELETE "HKEY_CLASSES_ROOT\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" /f &gt; NUL 2&gt;&amp;1
+
+exit
+		</File>
+		<File path="C:\Windows\Setup\Scripts\unattend-04.cmd">
+fsutil behavior set disable8dot3 1
+		</File>
+		<File path="C:\Windows\Setup\Scripts\unattend-05.ps1">
+Write-Host "Installing .NET Framework 3.5 from ISO..."
+foreach( $drive in [System.IO.DriveInfo]::GetDrives() ) {
+    if( $found = Join-Path -Path $drive.RootDirectory -ChildPath 'sources\sxs' -Resolve -ErrorAction 'SilentlyContinue' ) {
+        Enable-WindowsOptionalFeature -Online -FeatureName 'NetFx3' -Source $found -NoRestart;
+        return;
+    }
+}
+'Cannot find any files that match pattern.' | Write-Warning;
+Exit
+		</File>
+		<File path="C:\Windows\Setup\Scripts\unattend-06.ps1">
+# URLs for the latest Visual C++ and DirectX Redistributable
+Write-Host "Installing latest Visual C++ and DirectX Redistributable from abbodi1406 and htfx..."
+$urls = @(
+    "https://github.com/abbodi1406/vcredist/releases/latest/download/VisualCppRedist_AIO_x86_x64.exe"  # https://github.com/abbodi1406/vcredist
+    "https://github.com/stdin82/htfx/releases/latest/download/DirectX_Redist_Repack_x86_x64.exe"  # https://github.com/stdin82/htfx
+
+)
+
+# VisualCppRedist AIO does not include any ARM64 installers,
+# and it's not planned to have ARM64 support.
+# https://github.com/abbodi1406/vcredist/issues/110
+if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') {
+    $urls += "https://aka.ms/vs/17/release/vc_redist.arm64.exe"
+}
+
+# Directory to save the downloads
+$downloadPath = "$env:TEMP"
+
+# https://stackoverflow.com/a/25127597
+Function Get-RedirectedUrl {
+    Param (
+        [Parameter(Mandatory=$true)]
+        [String]$URL
+    )
+    $request = [System.Net.WebRequest]::Create($URL)
+    $request.Method = "HEAD"
+    $request.AllowAutoRedirect=$false
+    $response=$request.GetResponse()
+
+    If ($response.StatusCode -eq "Found")
+    {
+        $response.GetResponseHeader("Location")
+    }
+}
+
+# To improve download performance, the progress bar is suppressed. [2, 6]
+$ProgressPreference = 'SilentlyContinue'
+
+# There is a bug that makes MSI installs take *FOREVER* to finish.
+# https://github.com/microsoft/Windows-Sandbox/issues/68
+# There is a solution: temporarily turn off Smart App Control.
+# Thanks, Traxof63!
+Function Set-SmartAppControl {
+    Param (
+        [Parameter(Mandatory=$true)]
+        [String]$Num
+    )
+    Write-Host "Setting CI Policy 'VerifiedAndReputablePolicyState' to $Num..."
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy" -Name "VerifiedAndReputablePolicyState" -Value $Num
+    # Only problem is, CiTool does not exit without user interaction. This means
+    # that we create a process that uses around 664k of Memory... Ugh, Microsoft!
+    Start-Process -FilePath "CiTool.exe" -ArgumentList "-r" -WindowStyle Hidden
+}
+
+Set-SmartAppControl "0"
+
+foreach ($url in $urls) {
+    $redirectUrl = [System.IO.Path]::GetFileName((Get-RedirectedUrl $url))
+    $fileName = $redirectUrl.Split('/')[-1]
+    $filePath = Join-Path $downloadPath $fileName
+
+    Write-Host "Downloading $fileName..."
+    Write-Host $filePath
+    # Download the file without a progress bar [1, 4]
+    Invoke-WebRequest -Uri $url -OutFile $filePath
+
+    if (Test-Path $filePath) {
+        Write-Host "Installing $fileName..."
+        # Silently install the redistributable and wait for it to complete [3, 5, 9]
+        if ($url -match "https://aka.ms/vs/17/release/vc_redist.arm64.exe") {
+            Start-Process -FilePath $filePath -ArgumentList "/install /quiet /norestart" -Wait
+        } else {
+            Start-Process -FilePath $filePath -ArgumentList "/ai /gm2" -Wait
+        }
+        Write-Host "$fileName has been installed."
+        # Optional: Remove the installer after installation
+        # Remove-Item -Path $filePath
+    } else {
+        Write-Host "Error: Failed to download $fileName."
+    }
+}
+
+# Turn Smart App Control back on
+Set-SmartAppControl "1"
+
+# Restore the default progress preference
+$ProgressPreference = 'Continue'
+
+Write-Host "Script execution finished."
+Exit
+		</File>
+		<File path="C:\Windows\Setup\Scripts\unattend-07.cmd">
+winget install Brave.Brave --accept-package-agreements --accept-source-agreements
+		</File>
 		<File path="C:\Windows\Setup\Scripts\Specialize.ps1">
 $scripts = @(
 	{
@@ -610,13 +763,7 @@ $scripts = @(
 		<File path="C:\Windows\Setup\Scripts\UserOnce.ps1">
 $scripts = @(
 	{
-		$params = @{
-			Path = 'Registry::HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32';
-			ErrorAction = 'SilentlyContinue';
-			Force = $true;
-		};
-		New-Item @params;
-		Set-ItemProperty @params -Name '(Default)' -Value '' -Type 'String';
+		reg.exe add "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" /ve /f;
 	};
 	{
 		Set-ItemProperty -LiteralPath 'Registry::HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name 'LaunchTo' -Type 'DWord' -Value 1;
@@ -689,6 +836,9 @@ $scripts = @(
 		<File path="C:\Windows\Setup\Scripts\DefaultUser.ps1">
 $scripts = @(
 	{
+		reg.exe add "HKU\DefaultUser\Software\Microsoft\Internet Explorer\LowRegistry\Audio\PolicyConfig\PropertyStore" /f;
+	};
+	{
 		Remove-ItemProperty -LiteralPath 'Registry::HKU\DefaultUser\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'OneDriveSetup' -Force -ErrorAction 'Continue';
 	};
 	{
@@ -718,6 +868,8 @@ $scripts = @(
 		  'SubscribedContent-338388Enabled';
 		  'SubscribedContent-338389Enabled';
 		  'SubscribedContent-338393Enabled';
+		  'SubscribedContent-353694Enabled';
+		  'SubscribedContent-353696Enabled';
 		  'SubscribedContent-353698Enabled';
 		  'SystemPaneSuggestionsEnabled';
 		);
@@ -766,6 +918,27 @@ $scripts = @(
 	};
 	{
 		cmd.exe /c "rmdir C:\Windows.old";
+	};
+	{
+		C:\Windows\Setup\Scripts\unattend-01.cmd;
+	};
+	{
+		C:\Windows\Setup\Scripts\unattend-02.cmd;
+	};
+	{
+		C:\Windows\Setup\Scripts\unattend-03.cmd;
+	};
+	{
+		C:\Windows\Setup\Scripts\unattend-04.cmd;
+	};
+	{
+		Get-Content -LiteralPath 'C:\Windows\Setup\Scripts\unattend-05.ps1' -Raw | Invoke-Expression;
+	};
+	{
+		Get-Content -LiteralPath 'C:\Windows\Setup\Scripts\unattend-06.ps1' -Raw | Invoke-Expression;
+	};
+	{
+		C:\Windows\Setup\Scripts\unattend-07.cmd;
 	};
 );
 
