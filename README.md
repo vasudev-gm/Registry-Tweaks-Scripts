@@ -22,6 +22,7 @@ Thank you abbodi1406, Majorgeeks, WinAero for reg tweaks, repacks and scripts.
 - [Unlock hidden power options Win 7][def10]
 - [DirectX Repack by htfx][def11]
 - [Automated Script to download and install VC++ Runtimes][def12]
+- [Emil Automated Script Gist][def13]
 
 Feel free to suggest any changes.
 
@@ -33,7 +34,7 @@ To make VHDX files smaller after integration use sdelete from Sysinternals Suite
 
 Added scripts to download Brave, DX/VC++ Redist and IrfanView to get latest versions within unattended.xml file
 
-Thanks to abbodi1406, htfx, exurd and ThioJoe for scripts and repacks
+Thanks to abbodi1406, htfx, exurd, emil and ThioJoe for scripts and repacks
 
 [def]: https://forums.mydigitallife.net/threads/repack-directx-end-user-runtime-june-2010.84785/
 [def2]: https://github.com/abbodi1406
@@ -47,3 +48,4 @@ Thanks to abbodi1406, htfx, exurd and ThioJoe for scripts and repacks
 [def10]: https://gist.github.com/theultramage/cbdfdbb733d4a5b7d2669a6255b4b94b
 [def11]: https://github.com/stdin82/htfx
 [def12]: https://github.com/exurd/Windows-Sandbox-Tools/blob/vcredist_aio_script/Installer%20Scripts/Install%20VC%20Redist%20AIO.ps1
+[def13]: https://gist.github.com/emilwojcik93/ef790a6b12c8e9358bbc52ed76fb495c
