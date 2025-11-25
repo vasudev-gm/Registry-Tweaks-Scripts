@@ -11,12 +11,12 @@ $ProgressPreference = 'SilentlyContinue'
 # Use Start-Job to implement timeout for connectivity check
 $internetAvailable = $false
 try {
-    $job = Start-Job -ScriptBlock { 
-        param($ProgressPref) 
+    $job = Start-Job -ScriptBlock {
+        param($ProgressPref)
         $ProgressPreference = $ProgressPref
         test-netconnection -ComputerName 8.8.8.8 -InformationLevel Quiet
     } -ArgumentList $ProgressPreference
-    
+
     # Wait up to 10 seconds for the job to complete
     if (Wait-Job -Job $job -Timeout 10) {
         $internetAvailable = Receive-Job -Job $job
@@ -25,7 +25,7 @@ try {
         Write-Output "Internet Connectivity Check timed out after 10 seconds."
         $internetAvailable = $false
     }
-    
+
     # Clean up the job
     Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
 } catch {
@@ -43,7 +43,7 @@ This PowerShell script ensures it is run with administrator privileges, then ins
 This script performs the following tasks:
 - Checks if it is run with administrator privileges and relaunches with elevated permissions if necessary.
 - Checks for offline packages in the WinApps directory at the root of the ISO or in the script directory before attempting to download.
-- Downloads and installs the latest Visual C++ Redistributables from a GitHub repository if offline packages don't exist.
+- Downloads and installs the latest Visual C++ Redistributables from a Gitlab repository if offline packages don't exist.
 - Downloads and installs the DirectX 9 End-User Runtime from Microsoft's official website if offline packages don't exist.
 - Provides verbose logging for detailed output, including the URLs being accessed, the files being downloaded, and the installation progress.
 - Handles errors gracefully by catching exceptions and providing meaningful error messages.
@@ -85,7 +85,7 @@ if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]:
         }
     }
 
-    
+
     $script = if ($PSCommandPath) {
         "& { & `"$($PSCommandPath)`" ${argList} }"
     } else {
@@ -122,15 +122,15 @@ function Test-OfflinePackages {
     # Try to find the ISO drive letter
     $isoDrives = Get-Volume | Where-Object { $_.DriveType -eq 'CD-ROM' -and $_.OperationalStatus -eq 'OK' } | Select-Object -ExpandProperty DriveLetter
     $packagePath = $null
-    
+
     # Check each potential ISO drive for the WinApps directory
     foreach ($driveLetter in $isoDrives) {
         $winAppsPath = "${driveLetter}:\WinApps"
         Write-Verbose "Checking for WinApps directory in drive ${driveLetter}: $winAppsPath"
-        
+
         if (Test-Path $winAppsPath) {
             Write-Verbose "Found WinApps directory in drive ${driveLetter}"
-            
+
             switch ($PackageName) {
                 "VCRedist" {
                     $vcRedistFile = Join-Path $winAppsPath "VisualCppRedist_AIO_x86_x64.exe"
@@ -149,16 +149,16 @@ function Test-OfflinePackages {
             }
         }
     }
-    
+
     # If not found in ISO, fallback to script directory
     $scriptDirectory = if ($PSCommandPath) {
         Split-Path -Parent $PSCommandPath
     } else {
         $PWD.Path
     }
-    
+
     $offlineDirectory = Join-Path $scriptDirectory "offline-packages"
-    
+
     switch ($PackageName) {
         "VCRedist" {
             $vcRedistFile = Join-Path $offlineDirectory "VisualCppRedist_AIO_x86_x64.exe"
@@ -169,7 +169,7 @@ function Test-OfflinePackages {
             return (Test-Path $directXFile), $directXFile
         }
     }
-    
+
     return $false, $null
 }
 
@@ -235,11 +235,11 @@ function Download {
 
 function Install-VCRedist {
     Write-Output "Installing Visual C++ Redistributables..."
-    
+
     # Check for offline package
     $offlineExists, $offlinePath = Test-OfflinePackages -PackageName "VCRedist"
     $vcRedistInstaller = $null
-    
+
     if ($offlineExists) {
         Write-Verbose "Found offline VCRedist package: $offlinePath"
         $vcRedistInstaller = $offlinePath
@@ -248,11 +248,11 @@ function Install-VCRedist {
         if (-not $internetAvailable -or $OfflineMode) {
             # Check for ISO WinApps directory using the same approach as Install-BraveAndIrfanView.cmd
             Write-Output "No internet connection or offline mode enabled, checking ISO for VCRedist package..."
-            
+
             # Create a similar approach to the CMD script with clearly defined variables
             $ISOFound = $false
             $WinAppsDir = $null
-            
+
             # Create a temporary script to find ISO with WinApps directory
             $tempScriptPath = Join-Path $env:TEMP "find_iso.ps1"
             @"
@@ -264,11 +264,11 @@ foreach(`$drive in `$isoDrives) {
   }
 }
 "@ | Out-File -FilePath $tempScriptPath -Encoding utf8
-            
+
             try {
                 # Execute the temporary script to find the ISO
                 $isoDrive = & powershell -ExecutionPolicy Bypass -File $tempScriptPath
-                
+
                 if ($isoDrive) {
                     $ISOFound = $true
                     $WinAppsDir = "${isoDrive}:\WinApps"
@@ -281,7 +281,7 @@ foreach(`$drive in `$isoDrives) {
                     Remove-Item -Path $tempScriptPath -Force
                 }
             }
-            
+
             # Check for VCRedist in the WinApps directory
             if ($ISOFound) {
                 $vcRedistPath = Join-Path $WinAppsDir "VisualCppRedist_AIO_x86_x64.exe"
@@ -297,7 +297,7 @@ foreach(`$drive in `$isoDrives) {
         } else {
             # If we have internet, try downloading as usual
             Write-Output "Downloading Visual C++ Redistributables..."
-            $vcRedistUrl = Get-LatestReleaseUrl -RepoUrl "https://api.github.com/repos/abbodi1406/vcredist" -FilePattern "VisualCppRedist_AIO_x86_x64.exe"
+            $vcRedistUrl = "https://gitlab.com/-/project/76069787/uploads/4431f3448fa76633cfd4983142f81952/VisualCppRedist_AIO_x86_x64.exe"
             if ($null -eq $vcRedistUrl) {
                 throw "Failed to get the latest Visual C++ Redistributables URL."
             }
@@ -313,7 +313,7 @@ foreach(`$drive in `$isoDrives) {
             $vcRedistInstaller = "$tempDir\VisualCppRedist_AIO_x86_x64.exe"
         }
     }
-    
+
     if (-not (Test-Path $vcRedistInstaller)) {
         throw "Installer file not found: $vcRedistInstaller"
     }
@@ -325,7 +325,7 @@ foreach(`$drive in `$isoDrives) {
     $processInfo.Arguments = "/ai /gm2"
     $processInfo.UseShellExecute = $true
     $processInfo.Verb = "runas"
-    
+
     # Start the process
     $process = [System.Diagnostics.Process]::Start($processInfo)
     $process.WaitForExit()
@@ -341,11 +341,11 @@ function Install-DirectX {
     $offlineExists, $offlinePath = Test-OfflinePackages -PackageName "DirectX"
     $directxInstaller = $null
     $tempDir = "$env:TEMP\directx"
-    
+
     if ($offlineExists) {
         Write-Verbose "Found offline DirectX package: $offlinePath"
         $directxInstaller = $offlinePath
-        
+
         # For offline packages, we use the "/ai /gm2" arguments directly
         Write-Verbose "Installing offline DirectX package with arguments: /ai /gm2"
         # Create a ProcessStartInfo object to set more detailed parameters
@@ -354,7 +354,7 @@ function Install-DirectX {
         $processInfo.Arguments = "/ai /gm2"
         $processInfo.UseShellExecute = $true
         $processInfo.Verb = "runas"
-        
+
         # Start the process
         $process = [System.Diagnostics.Process]::Start($processInfo)
         $process.WaitForExit()
@@ -365,11 +365,11 @@ function Install-DirectX {
         if (-not $internetAvailable -or $OfflineMode) {
             # Check for ISO WinApps directory using the same approach as Install-BraveAndIrfanView.cmd
             Write-Output "No internet connection or offline mode enabled, checking ISO for DirectX package..."
-            
+
             # Create a similar approach to the CMD script with clearly defined variables
             $ISOFound = $false
             $WinAppsDir = $null
-            
+
             # Create a temporary script to find ISO with WinApps directory
             $tempScriptPath = Join-Path $env:TEMP "find_iso.ps1"
             @"
@@ -381,11 +381,11 @@ foreach(`$drive in `$isoDrives) {
   }
 }
 "@ | Out-File -FilePath $tempScriptPath -Encoding utf8
-            
+
             try {
                 # Execute the temporary script to find the ISO
                 $isoDrive = & powershell -ExecutionPolicy Bypass -File $tempScriptPath
-                
+
                 if ($isoDrive) {
                     $ISOFound = $true
                     $WinAppsDir = "${isoDrive}:\WinApps"
@@ -398,14 +398,14 @@ foreach(`$drive in `$isoDrives) {
                     Remove-Item -Path $tempScriptPath -Force
                 }
             }
-            
+
             # Check for DirectX in the WinApps directory
             if ($ISOFound) {
                 $directxPath = Join-Path $WinAppsDir "DirectX_Redist_Repack_x86_x64.exe"
                 if (Test-Path $directxPath) {
                     Write-Output "Found DirectX package in ISO WinApps directory: $directxPath"
                     $directxInstaller = $directxPath
-                    
+
                     # For offline packages from ISO, we use the "/ai /gm2" arguments directly
                     Write-Verbose "Installing DirectX package from ISO with arguments: /ai /gm2"
                     # Create a ProcessStartInfo object to set more detailed parameters
@@ -414,7 +414,7 @@ foreach(`$drive in `$isoDrives) {
                     $processInfo.Arguments = "/ai /gm2"
                     $processInfo.UseShellExecute = $true
                     $processInfo.Verb = "runas"
-                    
+
                     # Start the process
                     $process = [System.Diagnostics.Process]::Start($processInfo)
                     $process.WaitForExit()
@@ -427,7 +427,7 @@ foreach(`$drive in `$isoDrives) {
                 throw "No internet connection available and no ISO with WinApps directory found."
             }
         }
-        
+
         Write-Output "Downloading DirectX 9 End-User Runtime..."
         # Ensure the temporary directory is clean
         if (Test-Path $tempDir) {
@@ -441,7 +441,7 @@ foreach(`$drive in `$isoDrives) {
         $directxInstaller = "$tempDir\directx_Jun2010_redist.exe"
         Write-Verbose "Downloading DirectX from URL: $directxUrl to $directxInstaller"
         Invoke-WebRequest -Uri $directxUrl -OutFile $directxInstaller
-        
+
         if (-not (Test-Path $directxInstaller)) {
             throw "DirectX installer not found: $directxInstaller"
         }
@@ -453,7 +453,7 @@ foreach(`$drive in `$isoDrives) {
         $extractInfo.Arguments = "/Q /T:$tempDir"
         $extractInfo.UseShellExecute = $true
         $extractInfo.Verb = "runas"
-        
+
         # Start the extraction process
         $extractProcess = [System.Diagnostics.Process]::Start($extractInfo)
         $extractProcess.WaitForExit()
@@ -470,7 +470,7 @@ foreach(`$drive in `$isoDrives) {
         $installInfo.Arguments = "/silent"
         $installInfo.UseShellExecute = $true
         $installInfo.Verb = "runas"
-        
+
         # Start the installation process
         $installProcess = [System.Diagnostics.Process]::Start($installInfo)
         $installProcess.WaitForExit()
@@ -482,10 +482,10 @@ foreach(`$drive in `$isoDrives) {
 function Main {
     # Variable to track if an error occurred
     $errorOccurred = $false
-    
+
     try {
         Write-Output "Starting installation process..."
-        
+
         # Create offline packages directory if it doesn't exist
         if ($PSCommandPath) {
             $offlineDir = Join-Path (Split-Path -Parent $PSCommandPath) "offline-packages"
@@ -493,7 +493,7 @@ function Main {
                 Write-Verbose "Creating offline packages directory: $offlineDir"
                 New-Item -ItemType Directory -Force -Path $offlineDir > $null
             }
-            
+
             # Check if we're running from an ISO with WinApps directory
             $isoDrives = Get-Volume | Where-Object { $_.DriveType -eq 'CD-ROM' -and $_.OperationalStatus -eq 'OK' } | Select-Object -ExpandProperty DriveLetter
             foreach ($driveLetter in $isoDrives) {
@@ -504,7 +504,7 @@ function Main {
                 }
             }
         }
-        
+
         Install-VCRedist
         Install-DirectX
         Write-Output "Installation process completed successfully."
