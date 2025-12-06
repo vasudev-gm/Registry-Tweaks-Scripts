@@ -3,7 +3,20 @@ param(
     [Parameter(Mandatory=$true)]
     [string]$IsoOrWimPath
 )
+# Import only required modules
+Import-Module -Name Dism -ErrorAction Stop
+Import-Module -Name Storage -ErrorAction Stop
+Import-Module -Name CimCmdlets -ErrorAction Stop
 
+# Todo: Add Optimized Export Image to Rebuild WIM after edits to reduce size
+function Optimize-WimImage {
+    param (
+        [string]$WimPath
+    )
+    # Optimize the WIM file
+    Write-Host "Optimizing WIM file: $WimPath" -ForegroundColor Cyan
+    dism /Optimize-Image /Image:$WimPath
+}
 
 
 # Cleanup Old Mounts and Temp Folders
@@ -115,11 +128,13 @@ function Get-WimEditions {
     return $editions
 }
 
+# Mount offline WIM image for servicing
 function Mount-Wim {
     param([string]$WimPath, [int]$Index, [string]$MountPath)
     Mount-WindowsImage -ImagePath $WimPath -Index $Index -Path $MountPath -CheckIntegrity -Optimize
 }
 
+# Commit changes and unmount WIM image with proper integrity checks
 function Commit-Wim {
     param([string]$MountPath)
     Dismount-WindowsImage -Path $MountPath -Save -CheckIntegrity
@@ -143,7 +158,8 @@ Write-Host "*: All editions" -ForegroundColor Yellow
 
 
 $indexInput = Read-Host "Enter the index number(s) of the edition(s) to modify (e.g. 1,3,5 or * for all editions)"
-Write-Host "Select Edge removal option:" -ForegroundColor Cyan
+
+Write-Host "Select operation:" -ForegroundColor Cyan
 Write-Host "0: Cancel operation"
 Write-Host "1: Remove All Edge Components"
 Write-Host "2: Remove Edge Browser"
@@ -211,7 +227,7 @@ if ($indexInput -eq '*') {
     }
 }
 
-
+# process every editions/index in multi edition WIM/ISO file
 foreach ($idx in $selectedIndexes) {
     Process-Edition -idx $idx
     $mountPaths += "$env:TEMP\WimMount_${idx}"
@@ -235,8 +251,6 @@ if ($isoExtracted -and (Test-Path $tempExtractPath)) {
         Write-Host "Failed to save updated ISO: ${_}" -ForegroundColor Red
     }
 }
-
-
 
 Cleanup-WimMounts
 Cleanup-ISOExtracts
