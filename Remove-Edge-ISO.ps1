@@ -1,4 +1,7 @@
 # Edge Removal Script for Windows 11 ISO (PowerShell 7+)
+# Disclaimer: Use at your own risk. Always back up your data before making system changes. Please be advised if you use Edge Browser and WebView components,
+# the script is not intended for such use cases as removing them does not make sense
+
 param(
     [Parameter(Mandatory=$true)]
     [string]$IsoOrWimPath
