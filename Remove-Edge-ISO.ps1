@@ -9,14 +9,8 @@ Import-Module -Name Storage -ErrorAction Stop
 Import-Module -Name CimCmdlets -ErrorAction Stop
 
 # Todo: Add Optimized Export Image to Rebuild WIM after edits to reduce size
-function Optimize-WimImage {
-    param (
-        [string]$WimPath
-    )
-    # Optimize the WIM file
-    Write-Host "Optimizing WIM file: $WimPath" -ForegroundColor Cyan
-    dism /Optimize-Image /Image:$WimPath
-}
+# Todo: ESD to WIM conversion option for ESD inputs
+# Todo: Improve slow processing time with powershell dism modules
 
 
 # Cleanup Old Mounts and Temp Folders
