@@ -6,10 +6,14 @@ param(
     [Parameter(Mandatory=$true)]
     [string]$IsoOrWimPath
 )
+
 # Import only required modules
 Import-Module -Name Dism -ErrorAction Stop
 Import-Module -Name Storage -ErrorAction Stop
 Import-Module -Name CimCmdlets -ErrorAction Stop
+
+# Start timer
+$scriptStartTime = Get-Date
 
 # Todo: Add Optimized Export Image to Rebuild WIM after edits to reduce size
 # Todo: ESD to WIM conversion option for ESD inputs
@@ -253,8 +257,20 @@ Cleanup-WimMounts
 Cleanup-ISOExtracts
 Cleanup-Mountpoints
 
+
+# Calculate and display elapsed time
+$scriptEndTime = Get-Date
+$elapsed = $scriptEndTime - $scriptStartTime
+if ($elapsed.TotalMinutes -ge 1) {
+    $elapsedMsg = "Time elapsed: {0:N2} minutes" -f $elapsed.TotalMinutes
+} else {
+    $elapsedMsg = "Time elapsed: {0:N2} seconds" -f $elapsed.TotalSeconds
+}
+
 if ($errorsFound) {
     Write-Host "Process completed with errors. Check above for details." -ForegroundColor Red
+    Write-Host $elapsedMsg -ForegroundColor Yellow
 } else {
     Write-Host "Process completed successfully!" -ForegroundColor Green
+    Write-Host $elapsedMsg -ForegroundColor Cyan
 }
