@@ -149,6 +149,13 @@ function Run-DismRemove {
 
 Ensure-Admin
 
+
+# Ensure $WimPath exists before continuing
+if (!(Test-Path $WimPath)) {
+    Write-Error "WIM file not found: $WimPath"
+    exit 1
+}
+
 $editions = Get-WimEditions -WimPath $WimPath
 Write-Host "Available Editions in ${WimPath}:" -ForegroundColor Cyan
 foreach ($e in $editions) {
@@ -165,8 +172,51 @@ Write-Host "0: Cancel operation"
 Write-Host "1: Remove All Edge Components"
 Write-Host "2: Remove Edge Browser"
 Write-Host "3: Remove Edge WebView"
+Write-Host "4: Optimize WIM image for export (credits: abbodi1406)"
 
-$choice = Read-Host "Enter your choice (0/1/2/3)"
+$choice = Read-Host "Enter your choice (0/1/2/3/4)"
+if ($choice -eq '4') {
+    Write-Host "Starting WIM optimization/export... (credits: abbodi1406)" -ForegroundColor Cyan
+    # Ensure $WimPath points to sources\install.wim under the root folder
+    if (!(Test-Path $WimPath) -or ($WimPath -notmatch "sources\\install\.wim$")) {
+        $possibleWim = Join-Path ([IO.Path]::GetDirectoryName($WimPath)) 'sources\install.wim'
+        if (Test-Path $possibleWim) {
+            $WimPath = $possibleWim
+        } else {
+            Write-Error "Could not locate install.wim under sources\ in the root folder."
+            exit 1
+        }
+    }
+    $WimTemp = [IO.Path]::GetDirectoryName($WimPath) + '\temp.wim'
+    $count = (Get-WindowsImage -ImagePath $WimPath).Count
+    try {
+        1..$count | foreach {
+            Export-WindowsImage -SourceImagePath $WimPath -SourceIndex $_ -DestinationImagePath $WimTemp
+        }
+        if (Test-Path $WimTemp) {
+            Move-Item -Path $WimTemp -Destination $WimPath -Force
+            Write-Host "Optimized WIM has replaced original install.wim" -ForegroundColor Green
+        } else {
+            Write-Host "WIM optimization failed: temp.wim not found." -ForegroundColor Red
+        }
+    } catch {
+        Write-Host "Export failed or was interrupted. Cleaning up temp.wim..." -ForegroundColor Red
+        if (Test-Path $WimTemp) { Remove-Item -Path $WimTemp -Force }
+    }
+    # Cleanup and exit after optimization
+    Cleanup-WimMounts
+    Cleanup-ISOExtracts
+    Cleanup-Mountpoints
+    $scriptEndTime = Get-Date
+    $elapsed = $scriptEndTime - $scriptStartTime
+    if ($elapsed.TotalMinutes -ge 1) {
+        $elapsedMsg = "Time elapsed for WIM optimization: {0:N2} minutes" -f $elapsed.TotalMinutes
+    } else {
+        $elapsedMsg = "Time elapsed for WIM optimization: {0:N2} seconds" -f $elapsed.TotalSeconds
+    }
+    Write-Host $elapsedMsg -ForegroundColor Cyan
+    exit 0
+}
 if ($choice -eq '0') {
     Write-Host "Operation cancelled by user." -ForegroundColor Yellow
     # Discard any mounted image
@@ -232,6 +282,34 @@ if ($indexInput -eq '*') {
 foreach ($idx in $selectedIndexes) {
     Process-Edition -idx $idx
     $mountPaths += "$env:TEMP\WimMount_${idx}"
+}
+
+if ($choice -eq '4') {
+    Write-Host "Starting WIM optimization/export... (credits: abbodi1406)" -ForegroundColor Cyan
+    $WimTemp = [IO.Path]::GetDirectoryName($WimPath) + '\temp.wim'
+    $count = (Get-WindowsImage -ImagePath $WimPath).Count
+    1..$count | foreach {
+        Export-WindowsImage -SourceImagePath $WimPath -SourceIndex $_ -DestinationImagePath $WimTemp
+    }
+    if (Test-Path $WimTemp) {
+        Move-Item -Path $WimTemp -Destination $WimPath -Force
+        Write-Host "Optimized WIM has replaced original install.wim" -ForegroundColor Green
+    } else {
+        Write-Host "WIM optimization failed: temp.wim not found." -ForegroundColor Red
+    }
+    # Cleanup and exit after optimization
+    Cleanup-WimMounts
+    Cleanup-ISOExtracts
+    Cleanup-Mountpoints
+    $scriptEndTime = Get-Date
+    $elapsed = $scriptEndTime - $scriptStartTime
+    if ($elapsed.TotalMinutes -ge 1) {
+        $elapsedMsg = "Time elapsed for WIM optimization: {0:N2} minutes" -f $elapsed.TotalMinutes
+    } else {
+        $elapsedMsg = "Time elapsed for WIM optimization: {0:N2} seconds" -f $elapsed.TotalSeconds
+    }
+    Write-Host $elapsedMsg -ForegroundColor Cyan
+    exit 0
 }
 
 # If input was ISO, save updated ISO before cleanup
