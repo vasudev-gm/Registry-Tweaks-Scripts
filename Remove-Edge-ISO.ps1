@@ -15,10 +15,41 @@ Import-Module -Name CimCmdlets -ErrorAction Stop
 # Start timer
 $scriptStartTime = Get-Date
 
-# Todo: Add Optimized Export Image to Rebuild WIM after edits to reduce size
+# Todo (Done): Add Optimized Export Image to Rebuild WIM after edits to reduce size (credits: abbodi1406 from MDL Forums)
 # Todo: ESD to WIM conversion option for ESD inputs
 # Todo: Improve slow processing time with powershell dism modules
 
+# Function to optimize/rebuild WIM image (credits: abbodi1406)
+function Optimize-WimImage {
+    param([string]$WimPath)
+    Write-Host "Starting WIM optimization/export... (credits: abbodi1406)" -ForegroundColor Cyan
+    # Ensure $WimPath points to sources\install.wim under the root folder
+    if (!(Test-Path $WimPath) -or ($WimPath -notmatch "sources\\install\.wim$")) {
+        $possibleWim = Join-Path ([IO.Path]::GetDirectoryName($WimPath)) 'sources\install.wim'
+        if (Test-Path $possibleWim) {
+            $WimPath = $possibleWim
+        } else {
+            Write-Error "Could not locate install.wim under sources\ in the root folder."
+            return
+        }
+    }
+    $WimTemp = [IO.Path]::GetDirectoryName($WimPath) + '\temp.wim'
+    $count = (Get-WindowsImage -ImagePath $WimPath).Count
+    try {
+        1..$count | foreach {
+            Export-WindowsImage -SourceImagePath $WimPath -SourceIndex $_ -CheckIntegrity -DestinationImagePath $WimTemp
+        }
+        if (Test-Path $WimTemp) {
+            Move-Item -Path $WimTemp -Destination $WimPath -Force
+            Write-Host "Optimized WIM has replaced original install.wim" -ForegroundColor Green
+        } else {
+            Write-Host "WIM optimization failed: temp.wim not found." -ForegroundColor Red
+        }
+    } catch {
+        Write-Host "Export failed or was interrupted. Cleaning up temp.wim..." -ForegroundColor Red
+        if (Test-Path $WimTemp) { Remove-Item -Path $WimTemp -Force }
+    }
+}
 
 # Cleanup Old Mounts and Temp Folders
 function Cleanup-WimMounts {
@@ -56,7 +87,7 @@ Cleanup-ISOExtracts
 Cleanup-Mountpoints
 
 # Remove extra quotes if present
-$cleanPath = $IsoOrWimPath.Trim('"')
+$cleanPath = $IsoOrWimPath.Trim('"').Trim()
 $isoExtracted = $false
 $tempExtractPath = ""
 if (Test-Path $cleanPath) {
@@ -176,33 +207,7 @@ Write-Host "4: Optimize WIM image for export (credits: abbodi1406)"
 
 $choice = Read-Host "Enter your choice (0/1/2/3/4)"
 if ($choice -eq '4') {
-    Write-Host "Starting WIM optimization/export... (credits: abbodi1406)" -ForegroundColor Cyan
-    # Ensure $WimPath points to sources\install.wim under the root folder
-    if (!(Test-Path $WimPath) -or ($WimPath -notmatch "sources\\install\.wim$")) {
-        $possibleWim = Join-Path ([IO.Path]::GetDirectoryName($WimPath)) 'sources\install.wim'
-        if (Test-Path $possibleWim) {
-            $WimPath = $possibleWim
-        } else {
-            Write-Error "Could not locate install.wim under sources\ in the root folder."
-            exit 1
-        }
-    }
-    $WimTemp = [IO.Path]::GetDirectoryName($WimPath) + '\temp.wim'
-    $count = (Get-WindowsImage -ImagePath $WimPath).Count
-    try {
-        1..$count | foreach {
-            Export-WindowsImage -SourceImagePath $WimPath -SourceIndex $_ -DestinationImagePath $WimTemp
-        }
-        if (Test-Path $WimTemp) {
-            Move-Item -Path $WimTemp -Destination $WimPath -Force
-            Write-Host "Optimized WIM has replaced original install.wim" -ForegroundColor Green
-        } else {
-            Write-Host "WIM optimization failed: temp.wim not found." -ForegroundColor Red
-        }
-    } catch {
-        Write-Host "Export failed or was interrupted. Cleaning up temp.wim..." -ForegroundColor Red
-        if (Test-Path $WimTemp) { Remove-Item -Path $WimTemp -Force }
-    }
+    Optimize-WimImage -WimPath $WimPath
     # Cleanup and exit after optimization
     Cleanup-WimMounts
     Cleanup-ISOExtracts
@@ -279,10 +284,14 @@ if ($indexInput -eq '*') {
 }
 
 # process every editions/index in multi edition WIM/ISO file
+
 foreach ($idx in $selectedIndexes) {
     Process-Edition -idx $idx
     $mountPaths += "$env:TEMP\WimMount_${idx}"
 }
+
+# After all editions is/are processed, optimize the WIM image
+Optimize-WimImage -WimPath $WimPath
 
 if ($choice -eq '4') {
     Write-Host "Starting WIM optimization/export... (credits: abbodi1406)" -ForegroundColor Cyan
