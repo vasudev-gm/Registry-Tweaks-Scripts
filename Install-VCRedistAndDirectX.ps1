@@ -43,7 +43,7 @@ This PowerShell script ensures it is run with administrator privileges, then ins
 This script performs the following tasks:
 - Checks if it is run with administrator privileges and relaunches with elevated permissions if necessary.
 - Checks for offline packages in the WinApps directory at the root of the ISO or in the script directory before attempting to download.
-- Downloads and installs the latest Visual C++ Redistributables from a Gitlab repository if offline packages don't exist.
+- Downloads and installs the latest Visual C++ Redistributables from a GitHub repository if offline packages don't exist.
 - Downloads and installs the DirectX 9 End-User Runtime from Microsoft's official website if offline packages don't exist.
 - Provides verbose logging for detailed output, including the URLs being accessed, the files being downloaded, and the installation progress.
 - Handles errors gracefully by catching exceptions and providing meaningful error messages.
@@ -297,7 +297,7 @@ foreach(`$drive in `$isoDrives) {
         } else {
             # If we have internet, try downloading as usual
             Write-Output "Downloading Visual C++ Redistributables..."
-            $vcRedistUrl = "https://gitlab.com/-/project/76069787/uploads/4431f3448fa76633cfd4983142f81952/VisualCppRedist_AIO_x86_x64.exe"
+            $vcRedistUrl = Get-LatestReleaseUrl -RepoUrl "https://api.github.com/repos/abbodi1406/vcredist" -FilePattern "VisualCppRedist_AIO_x86_x64.exe"
             if ($null -eq $vcRedistUrl) {
                 throw "Failed to get the latest Visual C++ Redistributables URL."
             }
