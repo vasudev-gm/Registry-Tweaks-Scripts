@@ -3,7 +3,7 @@
 # the script is not intended for such use cases as removing them does not make sense
 
 param(
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory = $true)]
     [string]$IsoOrWimPath
 )
 
@@ -28,7 +28,8 @@ function Optimize-WimImage {
         $possibleWim = Join-Path ([IO.Path]::GetDirectoryName($WimPath)) 'sources\install.wim'
         if (Test-Path $possibleWim) {
             $WimPath = $possibleWim
-        } else {
+        }
+        else {
             Write-Error "Could not locate install.wim under sources\ in the root folder."
             return
         }
@@ -42,10 +43,12 @@ function Optimize-WimImage {
         if (Test-Path $WimTemp) {
             Move-Item -Path $WimTemp -Destination $WimPath -Force
             Write-Host "Optimized WIM has replaced original install.wim" -ForegroundColor Green
-        } else {
+        }
+        else {
             Write-Host "WIM optimization failed: temp.wim not found." -ForegroundColor Red
         }
-    } catch {
+    }
+    catch {
         Write-Host "Export failed or was interrupted. Cleaning up temp.wim..." -ForegroundColor Red
         if (Test-Path $WimTemp) { Remove-Item -Path $WimTemp -Force }
     }
@@ -58,7 +61,8 @@ function Cleanup-WimMounts {
         try {
             Remove-Item -Path $wm.FullName -Recurse -Force
             Write-Host "Removed old WimMount folder: $($wm.FullName)" -ForegroundColor DarkGray
-        } catch {
+        }
+        catch {
             Write-Host "Could not remove old WimMount folder: $($wm.FullName): ${_}" -ForegroundColor Red
         }
     }
@@ -71,7 +75,8 @@ function Cleanup-ISOExtracts {
         try {
             Remove-Item -Path $old.FullName -Recurse -Force
             Write-Host "Removed old extracted ISO folder: $($old.FullName)" -ForegroundColor DarkGray
-        } catch {
+        }
+        catch {
             Write-Host "Could not remove old extracted ISO folder: $($old.FullName): ${_}" -ForegroundColor Red
         }
     }
@@ -94,7 +99,8 @@ if (Test-Path $cleanPath) {
     $item = Get-Item $cleanPath
     if ($item.PSIsContainer) {
         $WimPath = Join-Path $cleanPath 'sources\install.wim'
-    } elseif ($cleanPath -match "\.iso$") {
+    }
+    elseif ($cleanPath -match "\.iso$") {
         # Extract ISO contents to temp folder
         $tempExtractPath = Join-Path $env:TEMP ("ISOExtract_" + [guid]::NewGuid().ToString())
         New-Item -ItemType Directory -Path $tempExtractPath | Out-Null
@@ -110,14 +116,17 @@ if (Test-Path $cleanPath) {
             Get-ChildItem -Path $tempExtractPath -Recurse -File | ForEach-Object { Set-ItemProperty -Path $_.FullName -Name Attributes -Value ((Get-ItemProperty -Path $_.FullName -Name Attributes).Attributes -band (-bnot [System.IO.FileAttributes]::ReadOnly)) }
             $WimPath = Join-Path $tempExtractPath 'sources\install.wim'
             $isoExtracted = $true
-        } else {
+        }
+        else {
             Write-Error "Failed to mount ISO."
             exit 1
         }
-    } else {
+    }
+    else {
         $WimPath = $cleanPath
     }
-} else {
+}
+else {
     Write-Error "Path '$cleanPath' does not exist."
     exit 1
 }
@@ -133,7 +142,8 @@ if ($WimPath -notmatch "\.wim$") {
     if ($WimPath -match "\.esd$") {
         Write-Error "ESD files are unsupported. Please provide a WIM file."
         exit 1
-    } else {
+    }
+    else {
         Write-Error "File '$WimPath' is not a WIM file."
         exit 1
     }
@@ -216,7 +226,8 @@ if ($choice -eq '4') {
     $elapsed = $scriptEndTime - $scriptStartTime
     if ($elapsed.TotalMinutes -ge 1) {
         $elapsedMsg = "Time elapsed for WIM optimization: {0:N2} minutes" -f $elapsed.TotalMinutes
-    } else {
+    }
+    else {
         $elapsedMsg = "Time elapsed for WIM optimization: {0:N2} seconds" -f $elapsed.TotalSeconds
     }
     Write-Host $elapsedMsg -ForegroundColor Cyan
@@ -230,7 +241,8 @@ if ($choice -eq '0') {
         try {
             Dismount-WindowsImage -Path $mp -Discard
             Write-Host "Discarded mounted image at $mp" -ForegroundColor DarkGray
-        } catch {
+        }
+        catch {
             Write-Host "Could not discard mounted image at ${mp}: ${_}" -ForegroundColor Red
         }
     }
@@ -244,14 +256,15 @@ function Process-Edition {
     param([int]$idx)
     $mountPath = "$env:TEMP\WimMount_${idx}"
     if (!(Test-Path $mountPath)) { New-Item -ItemType Directory -Path $mountPath | Out-Null }
-        $errorsFound = $false
-        try {
-            Mount-Wim -WimPath $WimPath -Index $idx -MountPath $mountPath
-        } catch {
-            Write-Host "Failed to mount edition index ${idx}: ${_}" -ForegroundColor Red
-            $errorsFound = $true
-            return
-        }
+    $errorsFound = $false
+    try {
+        Mount-Wim -WimPath $WimPath -Index $idx -MountPath $mountPath
+    }
+    catch {
+        Write-Host "Failed to mount edition index ${idx}: ${_}" -ForegroundColor Red
+        $errorsFound = $true
+        return
+    }
     try {
         switch ($choice) {
             '0' { Write-Host "Operation cancelled by user." -ForegroundColor Yellow; exit 0 }
@@ -262,7 +275,8 @@ function Process-Edition {
         }
         Commit-Wim -MountPath $mountPath
         Write-Host "Changes committed to ${WimPath} for edition index ${idx}." -ForegroundColor Green
-    } catch {
+    }
+    catch {
         Write-Host "Failed to commit edition index ${idx}: ${_}" -ForegroundColor Red
     }
 }
@@ -273,7 +287,8 @@ function Process-Edition {
 $mountPaths = @()
 if ($indexInput -eq '*') {
     $selectedIndexes = $editions | ForEach-Object { $_.Index }
-} else {
+}
+else {
     $selectedIndexes = $indexInput -split ',' | ForEach-Object { $_.Trim() }
     $validIndexes = $editions | ForEach-Object { $_.Index }
     $selectedIndexes = $selectedIndexes | Where-Object { $validIndexes -contains $_ }
@@ -303,7 +318,8 @@ if ($choice -eq '4') {
     if (Test-Path $WimTemp) {
         Move-Item -Path $WimTemp -Destination $WimPath -Force
         Write-Host "Optimized WIM has replaced original install.wim" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "WIM optimization failed: temp.wim not found." -ForegroundColor Red
     }
     # Cleanup and exit after optimization
@@ -314,7 +330,8 @@ if ($choice -eq '4') {
     $elapsed = $scriptEndTime - $scriptStartTime
     if ($elapsed.TotalMinutes -ge 1) {
         $elapsedMsg = "Time elapsed for WIM optimization: {0:N2} minutes" -f $elapsed.TotalMinutes
-    } else {
+    }
+    else {
         $elapsedMsg = "Time elapsed for WIM optimization: {0:N2} seconds" -f $elapsed.TotalSeconds
     }
     Write-Host $elapsedMsg -ForegroundColor Cyan
@@ -332,10 +349,12 @@ if ($isoExtracted -and (Test-Path $tempExtractPath)) {
             $isoLabel = "WIN11_UPDATED"
             oscdimg -n -m -o -u2 -l$isoLabel $tempExtractPath $outputIso
             Write-Host "Updated ISO saved as $outputIso (optimized)" -ForegroundColor Green
-        } else {
+        }
+        else {
             Write-Host "oscdimg.exe not found. Please install Windows ADK to enable ISO creation. Visit the link here: https://learn.microsoft.com/en-us/windows-hardware/get-started/adk-install" -ForegroundColor Yellow
         }
-    } catch {
+    }
+    catch {
         Write-Host "Failed to save updated ISO: ${_}" -ForegroundColor Red
     }
 }
@@ -350,14 +369,16 @@ $scriptEndTime = Get-Date
 $elapsed = $scriptEndTime - $scriptStartTime
 if ($elapsed.TotalMinutes -ge 1) {
     $elapsedMsg = "Time elapsed: {0:N2} minutes" -f $elapsed.TotalMinutes
-} else {
+}
+else {
     $elapsedMsg = "Time elapsed: {0:N2} seconds" -f $elapsed.TotalSeconds
 }
 
 if ($errorsFound) {
     Write-Host "Process completed with errors. Check above for details." -ForegroundColor Red
     Write-Host $elapsedMsg -ForegroundColor Yellow
-} else {
+}
+else {
     Write-Host "Process completed successfully!" -ForegroundColor Green
     Write-Host $elapsedMsg -ForegroundColor Cyan
 }
