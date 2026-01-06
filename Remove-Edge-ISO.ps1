@@ -15,6 +15,9 @@ Import-Module -Name CimCmdlets -ErrorAction Stop
 # Start timer
 $scriptStartTime = Get-Date
 
+# Global ISO label
+$GlobalIsoLabel = "Custom_Win11"
+
 # Todo (Done): Add Optimized Export Image to Rebuild WIM after edits to reduce size (credits: abbodi1406 from MDL Forums)
 # Todo: ESD to WIM conversion option for ESD inputs
 # Todo: Improve slow processing time with powershell dism modules
@@ -37,7 +40,7 @@ function Optimize-WimImage {
     $WimTemp = [IO.Path]::GetDirectoryName($WimPath) + '\temp.wim'
     $count = (Get-WindowsImage -ImagePath $WimPath).Count
     try {
-        1..$count | foreach {
+        1..$count | ForEach-Object {
             Export-WindowsImage -SourceImagePath $WimPath -SourceIndex $_ -CheckIntegrity -DestinationImagePath $WimTemp
         }
         if (Test-Path $WimTemp) {
@@ -188,6 +191,91 @@ function Run-DismRemove {
     dism /image:"$MountPath" $Option
 }
 
+# Reusable ISO generation function using dual-boot BIOS/UEFI boot files with relative paths
+function New-DualBootIso {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)] [string]$SourcePath,
+        [Parameter(Mandatory = $true)] [string]$OutputIso,
+        [string]$Label = $GlobalIsoLabel
+    )
+    # Resolve oscdimg.exe from Windows ADK per architecture, fallback to PATH
+    $adkBase = "C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools"
+    $archMap = @{ 'AMD64' = 'amd64'; 'ARM64' = 'arm64'; 'x86' = 'x86' }
+    $procArch = $env:PROCESSOR_ARCHITECTURE
+    $archFolder = $archMap[$procArch]
+    $candidatePaths = @()
+    if ($archFolder) { $candidatePaths += (Join-Path (Join-Path $adkBase $archFolder) 'Oscdimg\oscdimg.exe') }
+    $candidatePaths += @(
+        (Join-Path (Join-Path $adkBase 'amd64') 'Oscdimg\oscdimg.exe'),
+        (Join-Path (Join-Path $adkBase 'arm64') 'Oscdimg\oscdimg.exe'),
+        (Join-Path (Join-Path $adkBase 'x86')   'Oscdimg\oscdimg.exe')
+    ) | Select-Object -Unique
+    $oscdimgPath = $candidatePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $oscdimgPath) {
+        $cmd = Get-Command oscdimg.exe -ErrorAction SilentlyContinue
+        if ($cmd) { $oscdimgPath = $cmd.Source }
+    }
+    if (-not $oscdimgPath) {
+        Write-Host "oscdimg.exe not found. Install Windows ADK or add it to PATH." -ForegroundColor Yellow
+        return $false
+    }
+    if (-not (Test-Path $SourcePath)) {
+        Write-Host "Source path '$SourcePath' does not exist." -ForegroundColor Red
+        return $false
+    }
+    Push-Location $SourcePath
+    $biosBootRel = "boot\etfsboot.com"
+    $uefiBootRel = "efi\microsoft\boot\efisys.bin"
+    $oscdimgDir = Split-Path $oscdimgPath -Parent
+    if (-not (Test-Path $biosBootRel)) {
+        $adkEtfs = Join-Path $oscdimgDir 'etfsboot.com'
+        if (Test-Path $adkEtfs) {
+            if (-not (Test-Path 'boot')) { New-Item -ItemType Directory -Path 'boot' | Out-Null }
+            Copy-Item -Path $adkEtfs -Destination $biosBootRel -Force -ErrorAction SilentlyContinue
+        }
+    }
+    if (-not (Test-Path $uefiBootRel)) {
+        $altUefi = "efi\microsoft\boot\efisys_noprompt.bin"
+        if (Test-Path $altUefi) { $uefiBootRel = $altUefi }
+        else {
+            $adkEfi = Join-Path $oscdimgDir 'efisys.bin'
+            $adkEfiNoPrompt = Join-Path $oscdimgDir 'efisys_noprompt.bin'
+            if (Test-Path $adkEfi -or (Test-Path $adkEfiNoPrompt)) {
+                if (-not (Test-Path 'efi\microsoft\boot')) { New-Item -ItemType Directory -Path 'efi\microsoft\boot' -Force | Out-Null }
+                if (Test-Path $adkEfi) { Copy-Item -Path $adkEfi -Destination $uefiBootRel -Force -ErrorAction SilentlyContinue }
+                if ((-not (Test-Path $uefiBootRel)) -and (Test-Path $adkEfiNoPrompt)) {
+                    Copy-Item -Path $adkEfiNoPrompt -Destination $altUefi -Force -ErrorAction SilentlyContinue
+                    $uefiBootRel = $altUefi
+                }
+            }
+        }
+    }
+    try {
+        $hasBootData = (Test-Path $biosBootRel) -and (Test-Path $uefiBootRel)
+        $oscdimgParams = @("-m", "-o", "-u2")
+        if ($hasBootData) {
+            $data = "2#p0,e,b$biosBootRel#pEF,e,b$uefiBootRel"
+            $oscdimgParams += @("-bootdata:$data", "-u2")
+        }
+        $oscdimgParams += @("-udfver102", "-l$Label", $SourcePath, $OutputIso)
+        Write-Verbose ("oscdimg: {0}" -f $oscdimgPath)
+        Write-Verbose ("args: {0}" -f ($oscdimgParams -join ' '))
+        $proc = Start-Process -FilePath $oscdimgPath -ArgumentList $oscdimgParams -NoNewWindow -PassThru -Wait
+        if ($proc.ExitCode -ne 0) { throw "oscdimg failed with exit code $($proc.ExitCode)" }
+        if ($hasBootData) { Write-Host "ISO saved as $OutputIso (dual-boot BIOS/UEFI)" -ForegroundColor Green }
+        else { Write-Host "ISO saved as $OutputIso" -ForegroundColor Green }
+        return $true
+    }
+    catch {
+        Write-Host "oscdimg execution failed: ${_}" -ForegroundColor Red
+        return $false
+    }
+    finally {
+        Pop-Location
+    }
+}
+
 Ensure-Admin
 
 
@@ -214,8 +302,9 @@ Write-Host "1: Remove All Edge Components"
 Write-Host "2: Remove Edge Browser"
 Write-Host "3: Remove Edge WebView"
 Write-Host "4: Optimize WIM image for export (credits: abbodi1406)"
+Write-Host "5: Generate ISO (dual-boot BIOS/UEFI)"
 
-$choice = Read-Host "Enter your choice (0/1/2/3/4)"
+$choice = Read-Host "Enter your choice (0/1/2/3/4/5)"
 if ($choice -eq '4') {
     Optimize-WimImage -WimPath $WimPath
     # Cleanup and exit after optimization
@@ -249,6 +338,40 @@ if ($choice -eq '0') {
     Cleanup-ISOExtracts
     Cleanup-WimMounts
     Cleanup-Mountpoints
+    exit 0
+}
+
+# ISO generation operation
+if ($choice -eq '5') {
+    $dateCode = (Get-Date).ToString('MMMyy')
+    $outputIso = Join-Path (Get-Location) ("Win11_{0}.iso" -f $dateCode)
+    # Determine source path for ISO creation
+    $isoSourcePath = $null
+    if ($isoExtracted -and (Test-Path $tempExtractPath)) {
+        $isoSourcePath = $tempExtractPath
+    }
+    elseif ($item -and $item.PSIsContainer) {
+        $isoSourcePath = $cleanPath
+    }
+    if ($isoSourcePath) {
+        Write-Host "Generating ISO from $isoSourcePath ..." -ForegroundColor Cyan
+        try {
+            New-DualBootIso -SourcePath $isoSourcePath -OutputIso $outputIso -Label $GlobalIsoLabel
+        }
+        catch {
+            Write-Host "ISO generation failed: ${_}" -ForegroundColor Red
+        }
+    }
+    else {
+        Write-Host "No valid ISO source folder available. Provide an ISO or an extracted folder path." -ForegroundColor Yellow
+    }
+    Cleanup-WimMounts
+    Cleanup-ISOExtracts
+    Cleanup-Mountpoints
+    $scriptEndTime = Get-Date
+    $elapsed = $scriptEndTime - $scriptStartTime
+    if ($elapsed.TotalMinutes -ge 1) { $elapsedMsg = "Time elapsed: {0:N2} minutes" -f $elapsed.TotalMinutes } else { $elapsedMsg = "Time elapsed: {0:N2} seconds" -f $elapsed.TotalSeconds }
+    Write-Host $elapsedMsg -ForegroundColor Cyan
     exit 0
 }
 
@@ -312,7 +435,7 @@ if ($choice -eq '4') {
     Write-Host "Starting WIM optimization/export... (credits: abbodi1406)" -ForegroundColor Cyan
     $WimTemp = [IO.Path]::GetDirectoryName($WimPath) + '\temp.wim'
     $count = (Get-WindowsImage -ImagePath $WimPath).Count
-    1..$count | foreach {
+    1..$count | ForEach-Object {
         Export-WindowsImage -SourceImagePath $WimPath -SourceIndex $_ -DestinationImagePath $WimTemp
     }
     if (Test-Path $WimTemp) {
@@ -338,25 +461,12 @@ if ($choice -eq '4') {
     exit 0
 }
 
-# If input was ISO, save updated ISO before cleanup
+# If input was ISO, save updated ISO before cleanup via reusable function
 if ($isoExtracted -and (Test-Path $tempExtractPath)) {
-    $outputIso = Join-Path (Get-Location) 'Updated_Win11.iso'
+    $dateCode = (Get-Date).ToString('MMMyy')
+    $outputIso = Join-Path (Get-Location) ("Win11_{0}.iso" -f $dateCode)
     Write-Host "Saving updated ISO as $outputIso..." -ForegroundColor Cyan
-    try {
-        # Use oscdimg if available, otherwise show message
-        if (Get-Command oscdimg.exe -ErrorAction SilentlyContinue) {
-            # Use recommended flags for optimized ISO: -n (long names), -m (larger than 700MB), -o (optimize storage), -u2 (UDF 2.01), -l (label)
-            $isoLabel = "WIN11_UPDATED"
-            oscdimg -n -m -o -u2 -l$isoLabel $tempExtractPath $outputIso
-            Write-Host "Updated ISO saved as $outputIso (optimized)" -ForegroundColor Green
-        }
-        else {
-            Write-Host "oscdimg.exe not found. Please install Windows ADK to enable ISO creation. Visit the link here: https://learn.microsoft.com/en-us/windows-hardware/get-started/adk-install" -ForegroundColor Yellow
-        }
-    }
-    catch {
-        Write-Host "Failed to save updated ISO: ${_}" -ForegroundColor Red
-    }
+    New-DualBootIso -SourcePath $tempExtractPath -OutputIso $outputIso -Label $GlobalIsoLabel
 }
 
 Cleanup-WimMounts
