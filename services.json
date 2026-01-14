@@ -1,0 +1,254 @@
+{
+    "ignore": [
+        {
+            "name": "wininit.exe",
+            "comment": "Windows Initialization - system critical"
+        },
+        {
+            "name": "winlogon.exe",
+            "comment": "Windows Logon - system critical"
+        },
+        {
+            "name": "csrss.exe",
+            "comment": "Client/Server Runtime - system critical"
+        },
+        {
+            "name": "smss.exe",
+            "comment": "Session Manager - system critical"
+        },
+        {
+            "name": "services.exe",
+            "comment": "Service Control Manager - system critical"
+        },
+        {
+            "name": "lsass.exe",
+            "comment": "Local Security Authority - system critical"
+        },
+        {
+            "name": "svchost.exe",
+            "comment": "Service Host (multiple instances) - system critical"
+        },
+        {
+            "name": "System",
+            "comment": "Kernel process - system critical"
+        },
+        {
+            "name": "explorer.exe",
+            "comment": "Windows Shell - needed for desktop UI"
+        },
+        {
+            "name": "dwm.exe",
+            "comment": "Desktop Window Manager - required for graphics"
+        },
+        {
+            "name": "fontdrvhost.exe",
+            "comment": "Font Driver Host - required for fonts"
+        },
+        {
+            "name": "audiodg.exe",
+            "comment": "Audio Device Graph - required for sound"
+        },
+        {
+            "name": "spoolsv.exe",
+            "comment": "Print Spooler - system, can be stopped if not printing"
+        },
+        {
+            "name": "winmgmt",
+            "comment": "Windows Management Instrumentation - system critical"
+        },
+        {
+            "name": "WmiPrvSE.exe",
+            "comment": "WMI Provider Host - system critical"
+        },
+        {
+            "name": "taskhostw.exe",
+            "comment": "Task Host - system critical"
+        },
+        {
+            "name": "rundll32.exe",
+            "comment": "DLL Loader - used by many system tasks"
+        },
+        {
+            "name": "msmpeng.exe",
+            "comment": "Windows Defender - system, can be disabled for gaming but not recommended"
+        },
+        {
+            "name": "MsMpEng.exe",
+            "comment": "Variant of MS Defender executable that resides under Program Data\\Microsoft\\Windows Defender\\Platform"
+        },
+        {
+            "name": "MpDefenderCoreService.exe",
+            "comment": "Windows Defender Core Service that possibly stops tampering"
+        },
+        {
+            "name": "NisSrv.exe",
+            "comment": "Network Inspection Service - part of Windows Defender"
+        },
+        {
+            "name": "RtkAudUService64.exe",
+            "comment": "Realtek Audio Universal Service - required for Realtek UWP audio drivers with Dolby support"
+        },
+        {
+            "name": "logi_lamparray_service.exe",
+            "comment": "Provides HID LampArray Lighting support to Logitech devices"
+        },
+        {
+            "name": "amdpmfservice.exe",
+            "comment": "AMD PMF Service - required for AMD power management features"
+        },
+        {
+            "name": "amdfendrsr.exe",
+            "comment": "AMD Crash Defender Service - required for AMD graphics features"
+        },
+        {
+            "name": "atiesrxx.exe",
+            "comment": "AMD External Events Service - required for AMD graphics features"
+        },
+        {
+            "name": "atieclxx.exe",
+            "comment": "AMD External Events Client Module - required for AMD graphics features"
+        },
+        {
+            "name": "NvContainer.exe",
+            "comment": "NVIDIA Container - required for NVIDIA graphics features"
+        },
+        {
+            "name": "NvContainerLocalSystem.exe",
+            "comment": "NVIDIA Local System Container - required for NVIDIA graphics features"
+        },
+        {
+            "name": "NvDisplay.Container.exe",
+            "comment": "NVIDIA Display Container - required for NVIDIA graphics features"
+        },
+        {
+            "name": "IAStorDataMgrSvc.exe",
+            "comment": "Intel Rapid Storage Technology Service - required for Intel storage features"
+        },
+        {
+            "name": "IntelCpHDCPSvc.exe",
+            "comment": "Intel Content Protection HECI Service - required for Intel DRM features"
+        },
+        {
+            "name": "IntelCpHeciSvc.exe",
+            "comment": "Intel HECI Service - required for Intel management features"
+        },
+        {
+            "name": "RtkAudioService64.exe",
+            "comment": "Realtek Audio Service - required for Realtek audio features"
+        },
+        {
+            "name": "AmdPpkgSvc.exe",
+            "comment": "Manages AMD provisioning packages, including processor and NVMe power management. Required for AMD CPU power management"
+        }
+    ],
+    "safelist": [
+        {
+            "name": "OneDrive.exe",
+            "comment": "OneDrive sync - safe to suspend if not using OneDrive"
+        },
+        {
+            "name": "SearchIndexer.exe",
+            "comment": "Windows Search Indexer - safe to suspend for gaming"
+        },
+        {
+            "name": "WSearch",
+            "comment": "Windows Search service - safe to stop for gaming"
+        },
+        {
+            "name": "SysMain",
+            "comment": "Superfetch - can be disabled for gaming"
+        },
+        {
+            "name": "wuauserv",
+            "comment": "Windows Update - can be stopped temporarily"
+        },
+        {
+            "name": "spoolsv.exe",
+            "comment": "Print Spooler - safe to stop if not printing"
+        },
+        {
+            "name": "bthserv",
+            "comment": "Bluetooth services - safe to stop if not using Bluetooth"
+        },
+        {
+            "name": "WerFault.exe",
+            "comment": "Windows Error Reporting - safe to suspend"
+        },
+        {
+            "name": "RemoteRegistry",
+            "comment": "Remote Registry - safe to stop if not using remote management"
+        },
+        {
+            "name": "msmpeng.exe",
+            "comment": "Windows Defender - safe to stop if using third-party AV"
+        },
+        {
+            "name": "wmpnetwk.exe",
+            "comment": "Windows Media Player Network Sharing Service - safe to stop"
+        },
+        {
+            "name": "Fax",
+            "comment": "Fax service - safe to stop if not using fax"
+        },
+        {
+            "name": "TabletInputService",
+            "comment": "Tablet PC Input Service - safe to stop if not using tablet features"
+        },
+        {
+            "name": "wisvc",
+            "comment": "Windows Insider Service - safe to stop if not in Insider program"
+        },
+        {
+            "name": "vmms.exe",
+            "comment": "Hyper-V Virtual Machine Management - safe to stop if not using virtualization"
+        },
+        {
+            "name": "vmcompute.exe",
+            "comment": "Hyper-V Compute Service - safe to stop if not using virtualization"
+        },
+        {
+            "name": "w3wp.exe",
+            "comment": "IIS Worker Process - safe to stop if not running web server"
+        },
+        {
+            "name": "sqlservr.exe",
+            "comment": "SQL Server - safe to stop if not using local DB"
+        },
+        {
+            "name": "Docker Desktop",
+            "comment": "Docker Desktop - safe to stop if not using containers"
+        },
+        {
+            "name": "Teams.exe",
+            "comment": "Microsoft Teams - safe to stop if not in use"
+        },
+        {
+            "name": "Spotify.exe",
+            "comment": "Spotify - safe to stop if not listening to music"
+        },
+        {
+            "name": "Zoom.exe",
+            "comment": "Zoom Workspace - safe to stop if not in use"
+        },
+        {
+            "name": "Discord.exe",
+            "comment": "Discord - safe to stop if not in use"
+        },
+        {
+            "name": "Slack.exe",
+            "comment": "Slack - safe to stop if not in use"
+        },
+        {
+            "name": "Podman.exe",
+            "comment": "Podman - safe to stop if not using containers"
+        },
+        {
+            "name": "CrossDeviceResume.exe",
+            "comment": "Cross-Device Resume - safe to stop if not using cross-device features"
+        },
+        {
+            "name": "AdobeARM.exe",
+            "comment": "Adobe Acrobat Update Service - safe to stop if not updating Adobe software"
+        }
+    ]
+}
