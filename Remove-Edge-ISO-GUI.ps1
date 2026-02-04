@@ -852,7 +852,58 @@ function Process-Edition {
     }
 }
 
-
+# Function to convert install.esd to install.wim using dism.exe
+function convert-ESDWIM {
+    param([string]$EsdPath)
+    Write-Host "Starting ESD to WIM conversion using dism.exe..." -ForegroundColor Cyan
+    if (!(Test-Path $EsdPath) -or ($EsdPath -notmatch "sources\\install\.esd$")) {
+        $possibleEsd = Join-Path ([IO.Path]::GetDirectoryName($EsdPath)) 'sources\install.esd'
+        if (Test-Path $possibleEsd) {
+            $EsdPath = $possibleEsd
+        }
+        else {
+            Write-Error "Could not locate install.esd under sources\ in the root folder."
+            return
+        }
+    }
+    $wimPath = [IO.Path]::GetDirectoryName($EsdPath) + '\install.wim'
+    $count = (Get-WindowsImage -ImagePath $EsdPath).Count
+    try {
+        for ($i = 1; $i -le $count; $i++) {
+            $dismArgs = @(
+                "/Export-Image",
+                "/SourceImageFile:$EsdPath",
+                "/SourceIndex:$i",
+                "/DestinationImageFile:$wimPath",
+                "/Compress:max",
+                "/CheckIntegrity"
+            )
+            Write-Host "Running: dism.exe $($dismArgs -join ' ')" -ForegroundColor Cyan
+            $proc = Start-Process -FilePath dism.exe -ArgumentList $dismArgs -NoNewWindow -Wait -PassThru
+            if ($proc.ExitCode -ne 0) {
+                Write-Host "dism.exe export failed for index $i with exit code $($proc.ExitCode)" -ForegroundColor Red
+                return
+            }
+        }
+        if (Test-Path $wimPath) {
+            Write-Host "Converted WIM has been created: $wimPath" -ForegroundColor Green
+            # Delete original install.esd after successful WIM conversion
+            try {
+                Remove-Item -Path $EsdPath -Force
+                Write-Host "Deleted original ESD: $EsdPath" -ForegroundColor Yellow
+            }
+            catch {
+                Write-Host "Could not delete original ESD: $EsdPath. ${_}" -ForegroundColor Red
+            }
+        }
+        else {
+            Write-Host "WIM export failed: install.wim not found." -ForegroundColor Red
+        }
+    }
+    catch {
+        Write-Host "dism.exe export failed or was interrupted." -ForegroundColor Red
+    }
+}
 
 # Validate selected indexes
 $mountPaths = @()
