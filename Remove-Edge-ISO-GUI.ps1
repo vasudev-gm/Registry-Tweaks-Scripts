@@ -640,7 +640,10 @@ function New-DualBootIso {
 
 # Function to optimize and export WIM image to ESD using dism.exe
 function Optimize-ESD {
-    param([string]$WimPath)
+    param(
+        [string]$WimPath,
+        [int[]]$Indexes = @()
+    )
     Write-Host "Starting WIM to ESD export using dism.exe..." -ForegroundColor Cyan
     if (!(Test-Path $WimPath) -or ($WimPath -notmatch "sources\\install\.wim$")) {
         $possibleWim = Join-Path ([IO.Path]::GetDirectoryName($WimPath)) 'sources\install.wim'
@@ -653,9 +656,15 @@ function Optimize-ESD {
         }
     }
     $esdPath = [IO.Path]::GetDirectoryName($WimPath) + '\install.esd'
-    $count = (Get-WindowsImage -ImagePath $WimPath).Count
+    $allImages = Get-WindowsImage -ImagePath $WimPath
+    if ($Indexes -and $Indexes.Count -gt 0) {
+        $exportIndexes = $Indexes
+    }
+    else {
+        $exportIndexes = $allImages | ForEach-Object { $_.ImageIndex }
+    }
     try {
-        for ($i = 1; $i -le $count; $i++) {
+        foreach ($i in $exportIndexes) {
             $dismArgs = @(
                 "/Export-Image",
                 "/SourceImageFile:$WimPath",
@@ -683,7 +692,7 @@ function Optimize-ESD {
             }
         }
         else {
-            Write-Host "ESD expo14rt failed: install.esd not found." -ForegroundColor Red
+            Write-Host "ESD export failed: install.esd not found." -ForegroundColor Red
         }
     }
     catch {
@@ -760,7 +769,22 @@ if ($choice -eq '0') {
     exit 0
 }
 if ($choice -eq '6') {
-    Optimize-ESD -WimPath $WimPath
+    # Parse selected indexes for use in ESD export
+    $selectedIndexes = @()
+    if ($indexInput -eq '*') {
+        $selectedIndexes = $editions | ForEach-Object { $_.Index }
+    }
+    else {
+        $inputIndexes = $indexInput -split ',' | ForEach-Object { $_.Trim() }
+        $validIndexes = $editions | ForEach-Object { $_.Index }
+        $selectedIndexes = $inputIndexes | Where-Object { $validIndexes -contains $_ }
+        if ($selectedIndexes.Count -eq 0) {
+            Write-Host "No valid edition indexes selected. Exiting." -ForegroundColor Red
+            exit 1
+        }
+    }
+    $indexesToExport = $selectedIndexes | ForEach-Object { [int]$_ }
+    Optimize-ESD -WimPath $WimPath -Indexes $indexesToExport
     Cleanup-WimMounts
     Cleanup-ISOExtracts
     Cleanup-Mountpoints
