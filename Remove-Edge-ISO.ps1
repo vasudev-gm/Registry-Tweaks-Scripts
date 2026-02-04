@@ -62,11 +62,18 @@ function Cleanup-WimMounts {
     $oldWimMounts = Get-ChildItem -Path $env:TEMP -Directory -Filter 'WimMount_*' -ErrorAction SilentlyContinue
     foreach ($wm in $oldWimMounts) {
         try {
-            Remove-Item -Path $wm.FullName -Recurse -Force
+            Remove-Item -Path $wm.FullName -Recurse -Force -ErrorAction Stop
             Write-Host "Removed old WimMount folder: $($wm.FullName)" -ForegroundColor DarkGray
         }
         catch {
-            Write-Host "Could not remove old WimMount folder: $($wm.FullName): ${_}" -ForegroundColor Red
+            Write-Host "Could not remove old WimMount folder: $($wm.FullName): ${_}" -ForegroundColor Yellow
+            # Try to discard the image if directory removal failed
+            try {
+                Discard-Image -MountPath $wm.FullName
+            }
+            catch {
+                Write-Host "Could not discard image for $($wm.FullName): ${_}" -ForegroundColor Red
+            }
         }
     }
 }
@@ -191,6 +198,31 @@ function Run-DismRemove {
     dism /image:"$MountPath" $Option
 }
 
+# Function to discard a mounted WIM image with error handling
+function Discard-Image {
+    param([string]$MountPath)
+    try {
+        Dismount-WindowsImage -Path $MountPath -Discard
+        Write-Host "Discarded mounted image at $MountPath" -ForegroundColor DarkGray
+    }
+    catch {
+        $errMsg = $_.Exception.Message
+        if ($errMsg -match 'Access to the path.*is denied') {
+            Write-Host "Access denied while discarding $MountPath. Retrying with force..." -ForegroundColor Yellow
+            try {
+                Dismount-WindowsImage -Path $MountPath -Discard -Force
+                Write-Host "Force-discarded mounted image at $MountPath" -ForegroundColor Yellow
+            }
+            catch {
+                Write-Host "Could not force-discard mounted image at ${MountPath}: ${_}" -ForegroundColor Red
+            }
+        }
+        else {
+            Write-Host "Could not discard mounted image at ${MountPath}: ${_}" -ForegroundColor Red
+        }
+    }
+}
+
 # Reusable ISO generation function using dual-boot BIOS/UEFI boot files with relative paths
 function New-DualBootIso {
     [CmdletBinding()]
@@ -276,6 +308,59 @@ function New-DualBootIso {
     }
 }
 
+# Function to optimize and export WIM image to ESD using dism.exe
+function Optimize-ESD {
+    param([string]$WimPath)
+    Write-Host "Starting WIM to ESD export using dism.exe..." -ForegroundColor Cyan
+    if (!(Test-Path $WimPath) -or ($WimPath -notmatch "sources\\install\.wim$")) {
+        $possibleWim = Join-Path ([IO.Path]::GetDirectoryName($WimPath)) 'sources\install.wim'
+        if (Test-Path $possibleWim) {
+            $WimPath = $possibleWim
+        }
+        else {
+            Write-Error "Could not locate install.wim under sources\ in the root folder."
+            return
+        }
+    }
+    $esdPath = [IO.Path]::GetDirectoryName($WimPath) + '\install.esd'
+    $count = (Get-WindowsImage -ImagePath $WimPath).Count
+    try {
+        for ($i = 1; $i -le $count; $i++) {
+            $dismArgs = @(
+                "/Export-Image",
+                "/SourceImageFile:$WimPath",
+                "/SourceIndex:$i",
+                "/DestinationImageFile:$esdPath",
+                "/Compress:recovery",
+                "/CheckIntegrity"
+            )
+            Write-Host "Running: dism.exe $($dismArgs -join ' ')" -ForegroundColor Cyan
+            $proc = Start-Process -FilePath dism.exe -ArgumentList $dismArgs -NoNewWindow -Wait -PassThru
+            if ($proc.ExitCode -ne 0) {
+                Write-Host "dism.exe export failed for index $i with exit code $($proc.ExitCode)" -ForegroundColor Red
+                return
+            }
+        }
+        if (Test-Path $esdPath) {
+            Write-Host "Optimized ESD has been created: $esdPath" -ForegroundColor Green
+            # Delete original install.wim after successful ESD conversion
+            try {
+                Remove-Item -Path $WimPath -Force
+                Write-Host "Deleted original WIM: $WimPath" -ForegroundColor Yellow
+            }
+            catch {
+                Write-Host "Could not delete original WIM: $WimPath. ${_}" -ForegroundColor Red
+            }
+        }
+        else {
+            Write-Host "ESD export failed: install.esd not found." -ForegroundColor Red
+        }
+    }
+    catch {
+        Write-Host "dism.exe export failed or was interrupted." -ForegroundColor Red
+    }
+}
+
 Ensure-Admin
 
 
@@ -303,8 +388,9 @@ Write-Host "2: Remove Edge Browser"
 Write-Host "3: Remove Edge WebView"
 Write-Host "4: Optimize WIM image for export (credits: abbodi1406)"
 Write-Host "5: Generate ISO (dual-boot BIOS/UEFI)"
+Write-Host "6: Optimize and Export Image to ESD (dism.exe)"
 
-$choice = Read-Host "Enter your choice (0/1/2/3/4/5)"
+$choice = Read-Host "Enter your choice (0/1/2/3/4/5/6)"
 if ($choice -eq '4') {
     Optimize-WimImage -WimPath $WimPath
     # Cleanup and exit after optimization
@@ -338,6 +424,22 @@ if ($choice -eq '0') {
     Cleanup-ISOExtracts
     Cleanup-WimMounts
     Cleanup-Mountpoints
+    exit 0
+}
+if ($choice -eq '6') {
+    Optimize-ESD -WimPath $WimPath
+    Cleanup-WimMounts
+    Cleanup-ISOExtracts
+    Cleanup-Mountpoints
+    $scriptEndTime = Get-Date
+    $elapsed = $scriptEndTime - $scriptStartTime
+    if ($elapsed.TotalMinutes -ge 1) {
+        $elapsedMsg = "Time elapsed for ESD export: {0:N2} minutes" -f $elapsed.TotalMinutes
+    }
+    else {
+        $elapsedMsg = "Time elapsed for ESD export: {0:N2} seconds" -f $elapsed.TotalSeconds
+    }
+    Write-Host $elapsedMsg -ForegroundColor Cyan
     exit 0
 }
 

@@ -28,7 +28,7 @@ function Ensure-Admin {
         $scriptPath = $PSCommandPath
         if (-not $scriptPath) { $scriptPath = $MyInvocation.MyCommand.Path }
         # Rebuild arguments for elevated relaunch
-        $elevArgs = @('-NoProfile','-ExecutionPolicy','Bypass','-File', $scriptPath)
+        $elevArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $scriptPath)
         if ($Gui) { $elevArgs += '-Gui' }
         if ($IsoOrWimPath) { $elevArgs += @('-IsoOrWimPath', $IsoOrWimPath) }
         if ($NoElevate) { $elevArgs += '-NoElevate' }
@@ -116,9 +116,9 @@ function Show-MinimalGui {
     $tbPath.AllowDrop = $true
     $tbPath.Add_DragEnter({ if ($_.Data.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) { $_.Effect = 'Copy' } })
     $tbPath.Add_DragDrop({
-        $items = $_.Data.GetData([System.Windows.Forms.DataFormats]::FileDrop)
-        if ($items -and $items.Length -gt 0) { $tbPath.Text = $items[0]; & $populateEditions }
-    })
+            $items = $_.Data.GetData([System.Windows.Forms.DataFormats]::FileDrop)
+            if ($items -and $items.Length -gt 0) { $tbPath.Text = $items[0]; & $populateEditions }
+        })
     if ($IsoOrWimPath) { $tbPath.Text = $IsoOrWimPath }
     # Populate editions when user finishes editing the path
     $tbPath.Add_Leave({ & $populateEditions })
@@ -127,27 +127,27 @@ function Show-MinimalGui {
     $btnBrowse.Text = 'Browse File...'
     $btnBrowse.Location = New-Object System.Drawing.Point(430, 14)
     $btnBrowse.Add_Click({
-        $dlg = New-Object System.Windows.Forms.OpenFileDialog
-        $dlg.Title = 'Select ISO or WIM'
-        $dlg.Filter = 'ISO/WIM (*.iso;*.wim)|*.iso;*.wim|All Files (*.*)|*.*'
-        if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-            $tbPath.Text = $dlg.FileName
-            & $populateEditions
-        }
-    })
+            $dlg = New-Object System.Windows.Forms.OpenFileDialog
+            $dlg.Title = 'Select ISO or WIM'
+            $dlg.Filter = 'ISO/WIM (*.iso;*.wim)|*.iso;*.wim|All Files (*.*)|*.*'
+            if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+                $tbPath.Text = $dlg.FileName
+                & $populateEditions
+            }
+        })
 
     $btnBrowseFolder = New-Object System.Windows.Forms.Button
     $btnBrowseFolder.Text = 'Folder...'
     $btnBrowseFolder.Location = New-Object System.Drawing.Point(520, 14)
     $btnBrowseFolder.Add_Click({
-        $fbd = New-Object System.Windows.Forms.FolderBrowserDialog
-        $fbd.Description = 'Select extracted ISO folder (contains sources\\install.wim)'
-        $fbd.ShowNewFolderButton = $false
-        if ($fbd.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-            $tbPath.Text = $fbd.SelectedPath
-            & $populateEditions
-        }
-    })
+            $fbd = New-Object System.Windows.Forms.FolderBrowserDialog
+            $fbd.Description = 'Select extracted ISO folder (contains sources\\install.wim)'
+            $fbd.ShowNewFolderButton = $false
+            if ($fbd.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+                $tbPath.Text = $fbd.SelectedPath
+                & $populateEditions
+            }
+        })
 
     # Operation selection
     $lblOp = New-Object System.Windows.Forms.Label
@@ -160,12 +160,13 @@ function Show-MinimalGui {
     $cbOp.Location = New-Object System.Drawing.Point(120, 55)
     $cbOp.Size = New-Object System.Drawing.Size(320, 24)
     [void]$cbOp.Items.AddRange(@(
-        '1 - Remove All Edge Components',
-        '2 - Remove Edge Browser',
-        '3 - Remove Edge WebView',
-        '4 - Optimize WIM image',
-        '5 - Generate ISO (dual-boot)'
-    ))
+            '1 - Remove All Edge Components',
+            '2 - Remove Edge Browser',
+            '3 - Remove Edge WebView',
+            '4 - Optimize WIM image',
+            '5 - Generate ISO (dual-boot)',
+            '6 - Optimize and Export Image to ESD (dism.exe)'
+        ))
     $cbOp.SelectedIndex = 0
 
     # Edition indexes
@@ -210,7 +211,8 @@ function Show-MinimalGui {
                                 $mountedIsoPath = "$dl`:\\sources\\install.wim"
                                 if (Test-Path $mountedIsoPath) { $resolvedWim = $mountedIsoPath }
                             }
-                        } catch { }
+                        }
+                        catch { }
                         finally {
                             if ($mnt) { Dismount-DiskImage -ImagePath $pathText -ErrorAction SilentlyContinue | Out-Null }
                         }
@@ -224,7 +226,8 @@ function Show-MinimalGui {
                     foreach ($img in $imgs) {
                         [void]$clbIdx.Items.Add(("{0} - {1}" -f $img.ImageIndex, $img.ImageName))
                     }
-                } catch { }
+                }
+                catch { }
             }
             if ($clbIdx.Items.Count -gt 0) { $clbIdx.SetItemChecked(0, $true) }
         }
@@ -260,14 +263,14 @@ function Show-MinimalGui {
     $btnSaveAs.Text = 'Save As...'
     $btnSaveAs.Location = New-Object System.Drawing.Point(450, 164)
     $btnSaveAs.Add_Click({
-        $sdlg = New-Object System.Windows.Forms.SaveFileDialog
-        $sdlg.Title = 'Choose output ISO name'
-        $sdlg.Filter = 'ISO Image (*.iso)|*.iso|All Files (*.*)|*.*'
-        $sdlg.FileName = $tbOutIso.Text
-        if ($sdlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-            $tbOutIso.Text = $sdlg.FileName
-        }
-    })
+            $sdlg = New-Object System.Windows.Forms.SaveFileDialog
+            $sdlg.Title = 'Choose output ISO name'
+            $sdlg.Filter = 'ISO Image (*.iso)|*.iso|All Files (*.*)|*.*'
+            $sdlg.FileName = $tbOutIso.Text
+            if ($sdlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+                $tbOutIso.Text = $sdlg.FileName
+            }
+        })
 
     # Show ISO fields only for operation 5 (Generate ISO), and adjust layout dynamically
     $setIsoFieldsVisibility = {
@@ -309,9 +312,9 @@ function Show-MinimalGui {
     & $setIsoFieldsVisibility $isIsoGen
 
     $cbOp.Add_SelectedIndexChanged({
-        $isIsoGenLocal = ($cbOp.SelectedItem -like '5*')
-        & $setIsoFieldsVisibility $isIsoGenLocal
-    })
+            $isIsoGenLocal = ($cbOp.SelectedItem -like '5*')
+            & $setIsoFieldsVisibility $isIsoGenLocal
+        })
 
     # Elevation option
     $chkElevate = New-Object System.Windows.Forms.CheckBox
@@ -325,43 +328,44 @@ function Show-MinimalGui {
     $btnOk.Text = 'Start'
     $btnOk.Location = New-Object System.Drawing.Point(280, 240)
     $btnOk.Add_Click({
-        if (-not [string]::IsNullOrWhiteSpace($tbPath.Text)) {
-            $script:IsoOrWimPath = $tbPath.Text.Trim()
-            $sel = $cbOp.SelectedItem
-            if ($sel) {
-                $script:ChoiceFromGui = ($sel.Split(' ')[0])
+            if (-not [string]::IsNullOrWhiteSpace($tbPath.Text)) {
+                $script:IsoOrWimPath = $tbPath.Text.Trim()
+                $sel = $cbOp.SelectedItem
+                if ($sel) {
+                    $script:ChoiceFromGui = ($sel.Split(' ')[0])
+                }
+                $checkedItems = @()
+                for ($i = 0; $i -lt $clbIdx.Items.Count; $i++) { if ($clbIdx.GetItemChecked($i)) { $checkedItems += $clbIdx.Items[$i] } }
+                if (($checkedItems | ForEach-Object { $_.ToString() }) -contains '* - All editions') {
+                    $script:IndexInputFromGui = '*'
+                }
+                else {
+                    $indices = @()
+                    foreach ($it in $checkedItems) { $s = $it.ToString(); if ($s -match '^\s*(\d+)') { $indices += $matches[1] } }
+                    if ($indices.Count -gt 0) { $script:IndexInputFromGui = ($indices -join ',') } else { $script:IndexInputFromGui = '*' }
+                }
+                if (-not [string]::IsNullOrWhiteSpace($tbIsoLabel.Text)) {
+                    $script:IsoLabelFromGui = $tbIsoLabel.Text.Trim()
+                }
+                if (-not [string]::IsNullOrWhiteSpace($tbOutIso.Text)) {
+                    $script:OutputIsoFromGui = $tbOutIso.Text.Trim()
+                }
+                $script:NoElevateFromGui = -not $chkElevate.Checked
+                $form.DialogResult = [System.Windows.Forms.DialogResult]::OK
+                $form.Close()
             }
-            $checkedItems = @()
-            for ($i = 0; $i -lt $clbIdx.Items.Count; $i++) { if ($clbIdx.GetItemChecked($i)) { $checkedItems += $clbIdx.Items[$i] } }
-            if (($checkedItems | ForEach-Object { $_.ToString() }) -contains '* - All editions') {
-                $script:IndexInputFromGui = '*'
-            } else {
-                $indices = @()
-                foreach ($it in $checkedItems) { $s = $it.ToString(); if ($s -match '^\s*(\d+)') { $indices += $matches[1] } }
-                if ($indices.Count -gt 0) { $script:IndexInputFromGui = ($indices -join ',') } else { $script:IndexInputFromGui = '*' }
+            else {
+                [System.Windows.Forms.MessageBox]::Show('Please select an ISO or WIM path.', 'Input required', 'OK', 'Warning') | Out-Null
             }
-            if (-not [string]::IsNullOrWhiteSpace($tbIsoLabel.Text)) {
-                $script:IsoLabelFromGui = $tbIsoLabel.Text.Trim()
-            }
-            if (-not [string]::IsNullOrWhiteSpace($tbOutIso.Text)) {
-                $script:OutputIsoFromGui = $tbOutIso.Text.Trim()
-            }
-            $script:NoElevateFromGui = -not $chkElevate.Checked
-            $form.DialogResult = [System.Windows.Forms.DialogResult]::OK
-            $form.Close()
-        }
-        else {
-            [System.Windows.Forms.MessageBox]::Show('Please select an ISO or WIM path.', 'Input required', 'OK', 'Warning') | Out-Null
-        }
-    })
+        })
 
     $btnCancel = New-Object System.Windows.Forms.Button
     $btnCancel.Text = 'Cancel'
     $btnCancel.Location = New-Object System.Drawing.Point(370, 240)
     $btnCancel.Add_Click({
-        $form.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-        $form.Close()
-    })
+            $form.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+            $form.Close()
+        })
 
     $form.Controls.AddRange(@($lblPath, $tbPath, $btnBrowse, $btnBrowseFolder, $lblOp, $cbOp, $lblIdx, $clbIdx, $lblIsoLabel, $tbIsoLabel, $lblOutIso, $tbOutIso, $btnSaveAs, $chkElevate, $btnOk, $btnCancel))
     # Apply layout once controls exist
@@ -376,11 +380,18 @@ function Cleanup-WimMounts {
     $oldWimMounts = Get-ChildItem -Path $env:TEMP -Directory -Filter 'WimMount_*' -ErrorAction SilentlyContinue
     foreach ($wm in $oldWimMounts) {
         try {
-            Remove-Item -Path $wm.FullName -Recurse -Force
+            Remove-Item -Path $wm.FullName -Recurse -Force -ErrorAction Stop
             Write-Host "Removed old WimMount folder: $($wm.FullName)" -ForegroundColor DarkGray
         }
         catch {
-            Write-Host "Could not remove old WimMount folder: $($wm.FullName): ${_}" -ForegroundColor Red
+            Write-Host "Could not remove old WimMount folder: $($wm.FullName): ${_}" -ForegroundColor Yellow
+            # Try to discard the image if directory removal failed
+            try {
+                Discard-Image -MountPath $wm.FullName
+            }
+            catch {
+                Write-Host "Could not discard image for $($wm.FullName): ${_}" -ForegroundColor Red
+            }
         }
     }
 }
@@ -517,6 +528,31 @@ function Run-DismRemove {
     dism /image:"$MountPath" $Option
 }
 
+# Function to discard a mounted WIM image with error handling
+function Discard-Image {
+    param([string]$MountPath)
+    try {
+        Dismount-WindowsImage -Path $MountPath -Discard
+        Write-Host "Discarded mounted image at $MountPath" -ForegroundColor DarkGray
+    }
+    catch {
+        $errMsg = $_.Exception.Message
+        if ($errMsg -match 'Access to the path.*is denied') {
+            Write-Host "Access denied while discarding $MountPath. Retrying with force..." -ForegroundColor Yellow
+            try {
+                Dismount-WindowsImage -Path $MountPath -Discard -Force
+                Write-Host "Force-discarded mounted image at $MountPath" -ForegroundColor Yellow
+            }
+            catch {
+                Write-Host "Could not force-discard mounted image at ${MountPath}: ${_}" -ForegroundColor Red
+            }
+        }
+        else {
+            Write-Host "Could not discard mounted image at ${MountPath}: ${_}" -ForegroundColor Red
+        }
+    }
+}
+
 # Reusable ISO generation function using dual-boot BIOS/UEFI boot files with relative paths
 function New-DualBootIso {
     [CmdletBinding()]
@@ -602,6 +638,59 @@ function New-DualBootIso {
     }
 }
 
+# Function to optimize and export WIM image to ESD using dism.exe
+function Optimize-ESD {
+    param([string]$WimPath)
+    Write-Host "Starting WIM to ESD export using dism.exe..." -ForegroundColor Cyan
+    if (!(Test-Path $WimPath) -or ($WimPath -notmatch "sources\\install\.wim$")) {
+        $possibleWim = Join-Path ([IO.Path]::GetDirectoryName($WimPath)) 'sources\install.wim'
+        if (Test-Path $possibleWim) {
+            $WimPath = $possibleWim
+        }
+        else {
+            Write-Error "Could not locate install.wim under sources\ in the root folder."
+            return
+        }
+    }
+    $esdPath = [IO.Path]::GetDirectoryName($WimPath) + '\install.esd'
+    $count = (Get-WindowsImage -ImagePath $WimPath).Count
+    try {
+        for ($i = 1; $i -le $count; $i++) {
+            $dismArgs = @(
+                "/Export-Image",
+                "/SourceImageFile:$WimPath",
+                "/SourceIndex:$i",
+                "/DestinationImageFile:$esdPath",
+                "/Compress:recovery",
+                "/CheckIntegrity"
+            )
+            Write-Host "Running: dism.exe $($dismArgs -join ' ')" -ForegroundColor Cyan
+            $proc = Start-Process -FilePath dism.exe -ArgumentList $dismArgs -NoNewWindow -Wait -PassThru
+            if ($proc.ExitCode -ne 0) {
+                Write-Host "dism.exe export failed for index $i with exit code $($proc.ExitCode)" -ForegroundColor Red
+                return
+            }
+        }
+        if (Test-Path $esdPath) {
+            Write-Host "Optimized ESD has been created: $esdPath" -ForegroundColor Green
+            # Delete original install.wim after successful ESD conversion
+            try {
+                Remove-Item -Path $WimPath -Force
+                Write-Host "Deleted original WIM: $WimPath" -ForegroundColor Yellow
+            }
+            catch {
+                Write-Host "Could not delete original WIM: $WimPath. ${_}" -ForegroundColor Red
+            }
+        }
+        else {
+            Write-Host "ESD expo14rt failed: install.esd not found." -ForegroundColor Red
+        }
+    }
+    catch {
+        Write-Host "dism.exe export failed or was interrupted." -ForegroundColor Red
+    }
+}
+
 Ensure-Admin
 
 
@@ -632,7 +721,8 @@ if (-not $choice -and -not $Gui) {
     Write-Host "3: Remove Edge WebView"
     Write-Host "4: Optimize WIM image for export (credits: abbodi1406)"
     Write-Host "5: Generate ISO (dual-boot BIOS/UEFI)"
-    $choice = Read-Host "Enter your choice (0/1/2/3/4/5)"
+    Write-Host "6: Optimize and Export Image to ESD (dism.exe)"
+    $choice = Read-Host "Enter your choice (0/1/2/3/4/5/6)"
 }
 if ($choice -eq '4') {
     Optimize-WimImage -WimPath $WimPath
@@ -667,6 +757,22 @@ if ($choice -eq '0') {
     Cleanup-ISOExtracts
     Cleanup-WimMounts
     Cleanup-Mountpoints
+    exit 0
+}
+if ($choice -eq '6') {
+    Optimize-ESD -WimPath $WimPath
+    Cleanup-WimMounts
+    Cleanup-ISOExtracts
+    Cleanup-Mountpoints
+    $scriptEndTime = Get-Date
+    $elapsed = $scriptEndTime - $scriptStartTime
+    if ($elapsed.TotalMinutes -ge 1) {
+        $elapsedMsg = "Time elapsed for ESD export: {0:N2} minutes" -f $elapsed.TotalMinutes
+    }
+    else {
+        $elapsedMsg = "Time elapsed for ESD export: {0:N2} seconds" -f $elapsed.TotalSeconds
+    }
+    Write-Host $elapsedMsg -ForegroundColor Cyan
     exit 0
 }
 
@@ -808,7 +914,8 @@ if ($isoExtracted -and (Test-Path $tempExtractPath)) {
     if (-not $outputIso) {
         $dateCode = (Get-Date).ToString('MMMyy')
         $outputIso = Join-Path (Get-Location) ("Win11_{0}.iso" -f $dateCode)
-    } else {
+    }
+    else {
         if (-not ($outputIso.ToLower().EndsWith('.iso'))) { $outputIso = "$outputIso.iso" }
         if (-not [IO.Path]::IsPathRooted($outputIso)) { $outputIso = (Join-Path (Get-Location) $outputIso) }
     }
