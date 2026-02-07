@@ -45,6 +45,9 @@ function Ensure-Admin {
 $scriptStartTime = Get-Date
 $outputIso = $null
 
+# Track errors across editions
+$script:errorsFound = $false
+
 # Global ISO label
 $GlobalIsoLabel = "Custom_Win11"
 
@@ -54,7 +57,10 @@ $GlobalIsoLabel = "Custom_Win11"
 
 # Function to optimize/rebuild WIM image (credits: abbodi1406)
 function Optimize-WimImage {
-    param([string]$WimPath)
+    param(
+        [string]$WimPath,
+        [int[]]$Indexes = @()
+    )
     Write-Host "Starting WIM optimization/export... (credits: abbodi1406)" -ForegroundColor Cyan
     # Ensure $WimPath points to sources\install.wim under the root folder
     if (!(Test-Path $WimPath) -or ($WimPath -notmatch "sources\\install\.wim$")) {
@@ -68,10 +74,16 @@ function Optimize-WimImage {
         }
     }
     $WimTemp = [IO.Path]::GetDirectoryName($WimPath) + '\temp.wim'
-    $count = (Get-WindowsImage -ImagePath $WimPath).Count
+    $allImages = Get-WindowsImage -ImagePath $WimPath
+    if ($Indexes -and $Indexes.Count -gt 0) {
+        $exportIndexes = $Indexes
+    }
+    else {
+        $exportIndexes = $allImages | ForEach-Object { $_.ImageIndex }
+    }
     try {
-        1..$count | ForEach-Object {
-            Export-WindowsImage -SourceImagePath $WimPath -SourceIndex $_ -CheckIntegrity -DestinationImagePath $WimTemp
+        foreach ($i in $exportIndexes) {
+            Export-WindowsImage -SourceImagePath $WimPath -SourceIndex $i -CheckIntegrity -DestinationImagePath $WimTemp
         }
         if (Test-Path $WimTemp) {
             Move-Item -Path $WimTemp -Destination $WimPath -Force
@@ -415,12 +427,12 @@ function Cleanup-Mountpoints {
     dism /Cleanup-Mountpoints
 }
 
+# Elevate early to avoid re-prompting in GUI after restart
+Ensure-Admin
+
 Cleanup-WimMounts
 Cleanup-ISOExtracts
 Cleanup-Mountpoints
-
-# Elevate early to avoid re-prompting in GUI after restart
-Ensure-Admin
 
 # If GUI mode requested or path not supplied, show minimal UI to gather inputs
 if ($Gui -or [string]::IsNullOrWhiteSpace($IsoOrWimPath)) {
@@ -700,9 +712,6 @@ function Optimize-ESD {
     }
 }
 
-Ensure-Admin
-
-
 # Ensure $WimPath exists before continuing
 if (!(Test-Path $WimPath)) {
     Write-Error "WIM file not found: $WimPath"
@@ -733,8 +742,24 @@ if (-not $choice -and -not $Gui) {
     Write-Host "6: Optimize and Export Image to ESD (dism.exe)"
     $choice = Read-Host "Enter your choice (0/1/2/3/4/5/6)"
 }
+
+# Parse selected indexes once for all operations
+$selectedIndexes = @()
+if ($indexInput -eq '*') {
+    $selectedIndexes = $editions | ForEach-Object { $_.Index }
+}
+else {
+    $inputIndexes = $indexInput -split ',' | ForEach-Object { $_.Trim() }
+    $validIndexes = $editions | ForEach-Object { $_.Index }
+    $selectedIndexes = $inputIndexes | Where-Object { $validIndexes -contains $_ }
+    if ($selectedIndexes.Count -eq 0) {
+        Write-Host "No valid edition indexes selected. Exiting." -ForegroundColor Red
+        exit 1
+    }
+}
+$selectedIndexes = $selectedIndexes | ForEach-Object { [int]$_ }
 if ($choice -eq '4') {
-    Optimize-WimImage -WimPath $WimPath
+    Optimize-WimImage -WimPath $WimPath -Indexes $selectedIndexes
     # Cleanup and exit after optimization
     Cleanup-WimMounts
     Cleanup-ISOExtracts
@@ -748,7 +773,8 @@ if ($choice -eq '4') {
         $elapsedMsg = "Time elapsed for WIM optimization: {0:N2} seconds" -f $elapsed.TotalSeconds
     }
     Write-Host $elapsedMsg -ForegroundColor Cyan
-    exit 0
+    Pause-ForExit
+    return
 }
 if ($choice -eq '0') {
     Write-Host "Operation cancelled by user." -ForegroundColor Yellow
@@ -766,23 +792,10 @@ if ($choice -eq '0') {
     Cleanup-ISOExtracts
     Cleanup-WimMounts
     Cleanup-Mountpoints
+    Pause-ForExit
     exit 0
 }
 if ($choice -eq '6') {
-    # Parse selected indexes for use in ESD export
-    $selectedIndexes = @()
-    if ($indexInput -eq '*') {
-        $selectedIndexes = $editions | ForEach-Object { $_.Index }
-    }
-    else {
-        $inputIndexes = $indexInput -split ',' | ForEach-Object { $_.Trim() }
-        $validIndexes = $editions | ForEach-Object { $_.Index }
-        $selectedIndexes = $inputIndexes | Where-Object { $validIndexes -contains $_ }
-        if ($selectedIndexes.Count -eq 0) {
-            Write-Host "No valid edition indexes selected. Exiting." -ForegroundColor Red
-            exit 1
-        }
-    }
     $indexesToExport = $selectedIndexes | ForEach-Object { [int]$_ }
     Optimize-ESD -WimPath $WimPath -Indexes $indexesToExport
     Cleanup-WimMounts
@@ -797,6 +810,7 @@ if ($choice -eq '6') {
         $elapsedMsg = "Time elapsed for ESD export: {0:N2} seconds" -f $elapsed.TotalSeconds
     }
     Write-Host $elapsedMsg -ForegroundColor Cyan
+    Pause-ForExit
     exit 0
 }
 
@@ -851,13 +865,12 @@ function Process-Edition {
     param([int]$idx)
     $mountPath = "$env:TEMP\WimMount_${idx}"
     if (!(Test-Path $mountPath)) { New-Item -ItemType Directory -Path $mountPath | Out-Null }
-    $errorsFound = $false
     try {
         Mount-Wim -WimPath $WimPath -Index $idx -MountPath $mountPath
     }
     catch {
         Write-Host "Failed to mount edition index ${idx}: ${_}" -ForegroundColor Red
-        $errorsFound = $true
+        $script:errorsFound = $true
         return
     }
     try {
@@ -873,6 +886,7 @@ function Process-Edition {
     }
     catch {
         Write-Host "Failed to commit edition index ${idx}: ${_}" -ForegroundColor Red
+        $script:errorsFound = $true
     }
 }
 
@@ -929,60 +943,14 @@ function convert-ESDWIM {
     }
 }
 
-# Validate selected indexes
-$mountPaths = @()
-if ($indexInput -eq '*') {
-    $selectedIndexes = $editions | ForEach-Object { $_.Index }
-}
-else {
-    $selectedIndexes = $indexInput -split ',' | ForEach-Object { $_.Trim() }
-    $validIndexes = $editions | ForEach-Object { $_.Index }
-    $selectedIndexes = $selectedIndexes | Where-Object { $validIndexes -contains $_ }
-    if ($selectedIndexes.Count -eq 0) {
-        Write-Host "No valid edition indexes selected. Exiting." -ForegroundColor Red
-        exit 1
-    }
-}
-
 # process every editions/index in multi edition WIM/ISO file
 
 foreach ($idx in $selectedIndexes) {
     Process-Edition -idx $idx
-    $mountPaths += "$env:TEMP\WimMount_${idx}"
 }
 
 # After all editions is/are processed, optimize the WIM image
-Optimize-WimImage -WimPath $WimPath
-
-if ($choice -eq '4') {
-    Write-Host "Starting WIM optimization/export... (credits: abbodi1406)" -ForegroundColor Cyan
-    $WimTemp = [IO.Path]::GetDirectoryName($WimPath) + '\temp.wim'
-    $count = (Get-WindowsImage -ImagePath $WimPath).Count
-    1..$count | ForEach-Object {
-        Export-WindowsImage -SourceImagePath $WimPath -SourceIndex $_ -DestinationImagePath $WimTemp
-    }
-    if (Test-Path $WimTemp) {
-        Move-Item -Path $WimTemp -Destination $WimPath -Force
-        Write-Host "Optimized WIM has replaced original install.wim" -ForegroundColor Green
-    }
-    else {
-        Write-Host "WIM optimization failed: temp.wim not found." -ForegroundColor Red
-    }
-    # Cleanup and exit after optimization
-    Cleanup-WimMounts
-    Cleanup-ISOExtracts
-    Cleanup-Mountpoints
-    $scriptEndTime = Get-Date
-    $elapsed = $scriptEndTime - $scriptStartTime
-    if ($elapsed.TotalMinutes -ge 1) {
-        $elapsedMsg = "Time elapsed for WIM optimization: {0:N2} minutes" -f $elapsed.TotalMinutes
-    }
-    else {
-        $elapsedMsg = "Time elapsed for WIM optimization: {0:N2} seconds" -f $elapsed.TotalSeconds
-    }
-    Write-Host $elapsedMsg -ForegroundColor Cyan
-    exit 0
-}
+Optimize-WimImage -WimPath $WimPath -Indexes $selectedIndexes
 
 # If input was ISO, save updated ISO before cleanup via reusable function
 if ($isoExtracted -and (Test-Path $tempExtractPath)) {
@@ -1013,11 +981,23 @@ else {
     $elapsedMsg = "Time elapsed: {0:N2} seconds" -f $elapsed.TotalSeconds
 }
 
-if ($errorsFound) {
+# Define Pause-ForExit at top-level so it is always available
+if (-not (Get-Command Pause-ForExit -ErrorAction SilentlyContinue)) {
+    function Pause-ForExit {
+        Write-Host "Press E or 0 to exit..." -ForegroundColor Cyan
+        do {
+            $resp = Read-Host
+        } while ($resp -notmatch '^(?i:e|0)$')
+    }
+}
+
+if ($script:errorsFound) {
     Write-Host "Process completed with errors. Check above for details." -ForegroundColor Red
     Write-Host $elapsedMsg -ForegroundColor Yellow
+    Pause-ForExit
 }
 else {
     Write-Host "Process completed successfully!" -ForegroundColor Green
     Write-Host $elapsedMsg -ForegroundColor Cyan
+    Pause-ForExit
 }
