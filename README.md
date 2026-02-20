@@ -34,6 +34,8 @@ To make VHDX files smaller after integration use sdelete from Sysinternals Suite
 
 Added scripts to download Brave, DX/VC++ Redist and IrfanView to get latest versions within unattended.xml file
 
+UWP Bloatware list from [Edugeek Forum][def14]
+
 Thanks to abbodi1406, htfx, exurd, emil and ThioJoe for scripts and repacks
 
 [def]: https://forums.mydigitallife.net/threads/repack-directx-end-user-runtime-june-2010.84785/
@@ -49,3 +51,4 @@ Thanks to abbodi1406, htfx, exurd, emil and ThioJoe for scripts and repacks
 [def11]: https://github.com/stdin82/htfx
 [def12]: https://github.com/exurd/Windows-Sandbox-Tools/blob/vcredist_aio_script/Installer%20Scripts/Install%20VC%20Redist%20AIO.ps1
 [def13]: https://gist.github.com/emilwojcik93/ef790a6b12c8e9358bbc52ed76fb495c
+[def14]: https://www.edugeek.net/forums/topic/219203-remove-appx-packages/
