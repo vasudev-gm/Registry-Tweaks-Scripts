@@ -177,7 +177,8 @@ function Show-MinimalGui {
             '3 - Remove Edge WebView',
             '4 - Optimize WIM image',
             '5 - Generate ISO (dual-boot)',
-            '6 - Optimize and Export Image to ESD (dism.exe)'
+            '6 - Optimize and Export Image to ESD (dism.exe)',
+            '7 - Remove Safe Appx Provisioned Packages (Win10/Win11 auto-detect)'
         ))
     $cbOp.SelectedIndex = 0
 
@@ -540,6 +541,151 @@ function Run-DismRemove {
     dism /image:"$MountPath" $Option
 }
 
+function Get-ImageBuildNumber {
+    param(
+        [string]$WimPath,
+        [int]$Index
+    )
+    try {
+        $img = Get-WindowsImage -ImagePath $WimPath -Index $Index
+        $verText = [string]$img.Version
+        if ([string]::IsNullOrWhiteSpace($verText)) { return $null }
+        return ([version]$verText).Build
+    }
+    catch {
+        Write-Host "Could not detect image build for index ${Index}: ${_}" -ForegroundColor Yellow
+        return $null
+    }
+}
+
+function Get-SafeAppxPatterns {
+    param([int]$BuildNumber)
+
+    $win10Safe = @(
+        'Microsoft.3DBuilder',
+        'Microsoft.GetHelp',
+        'Microsoft.Getstarted',
+        'Microsoft.Microsoft3DViewer',
+        'Microsoft.MicrosoftOfficeHub',
+        'Microsoft.MicrosoftSolitaireCollection',
+        'Microsoft.MixedReality.Portal',
+        'Microsoft.OneConnect',
+        'Microsoft.People',
+        'Microsoft.SkypeApp',
+        'Microsoft.Wallet',
+        'Microsoft.WindowsAlarms',
+        'Microsoft.WindowsFeedbackHub',
+        'Microsoft.WindowsMaps',
+        'Microsoft.Xbox*',
+        'Microsoft.YourPhone',
+        'Microsoft.ZuneMusic',
+        'Microsoft.ZuneVideo',
+        'Microsoft.BingWeather',
+        'microsoft.windowscommunicationsapps',
+        'Microsoft.WindowsAlarms',
+        'Microsoft.Office.OneNote',
+        'Microsoft.Windows.Photos'
+    )
+
+    $win11Safe = @(
+        'Clipchamp.Clipchamp',
+        'Microsoft.GetHelp',
+        'Microsoft.Getstarted',
+        'Microsoft.MicrosoftSolitaireCollection',
+        'Microsoft.People',
+        'Microsoft.PowerAutomateDesktop',
+        'Microsoft.Todos',
+        'Microsoft.WindowsAlarms',
+        'Microsoft.WindowsFeedbackHub',
+        'Microsoft.WindowsMaps',
+        'Microsoft.Xbox*',
+        'Microsoft.YourPhone',
+        'Microsoft.ZuneMusic',
+        'Microsoft.ZuneVideo',
+        'Microsoft.Windows.DevHome',
+        'Microsoft.BingNews',
+        'Microsoft.BingWeather',
+        'Microsoft.WindowsAlarms',
+        'Microsoft.Office.OneNote',
+        'MicrosoftWindows.CrossDevice',
+        'MSTeams',
+        'Microsoft.OutlookForWindows',
+        'Microsoft.Windows.Photos',
+        'Microsoft.BingSearch',
+        'Microsoft.Todos',
+        'Microsoft.GamingApp',
+        'Microsoft.Copilot'
+    )
+
+    if ($BuildNumber -and $BuildNumber -ge 22000) {
+        Write-Host "Detected Windows 11 image build ($BuildNumber). Using Windows 11 safe Appx list." -ForegroundColor Cyan
+        return $win11Safe
+    }
+
+    if ($BuildNumber) {
+        Write-Host "Detected Windows 10 image build ($BuildNumber). Using Windows 10 safe Appx list." -ForegroundColor Cyan
+    }
+    else {
+        Write-Host "Could not detect build number. Defaulting to Windows 10 safe Appx list." -ForegroundColor Yellow
+    }
+    return $win10Safe
+}
+
+function Remove-SafeProvisionedAppx {
+    param(
+        [string]$MountPath,
+        [string[]]$Patterns
+    )
+
+    $provisioned = Get-AppxProvisionedPackage -Path $MountPath
+    if (-not $provisioned) {
+        Write-Host "No provisioned Appx packages found at mount path: $MountPath" -ForegroundColor Yellow
+        return
+    }
+
+    $targets = foreach ($pkg in $provisioned) {
+        $display = [string]$pkg.DisplayName
+        $pkgName = [string]$pkg.PackageName
+        $matched = $false
+        foreach ($pattern in $Patterns) {
+            if ($display -like $pattern -or $pkgName -like "$pattern*") {
+                $matched = $true
+                break
+            }
+        }
+        if ($matched) { $pkg }
+    }
+
+    if (-not $targets -or $targets.Count -eq 0) {
+        Write-Host "No packages matched the safe Appx removal list." -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host "Removing $($targets.Count) provisioned Appx package(s)..." -ForegroundColor Cyan
+    foreach ($pkg in $targets) {
+        try {
+            Remove-AppxProvisionedPackage -Path $MountPath -PackageName $pkg.PackageName -ErrorAction Stop | Out-Null
+            Write-Host "Removed: $($pkg.DisplayName)" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "Failed to remove $($pkg.DisplayName): ${_}" -ForegroundColor Red
+            $script:errorsFound = $true
+        }
+    }
+
+    # Run /Optimize-ProvisionedAppxPackages on the image after removal.
+    try {
+        Write-Host "Optimizing provisioned Appx package state..." -ForegroundColor Cyan
+        Optimize-AppxProvisionedPackages -Path $MountPath -ErrorAction Stop | Out-Null
+        Write-Host "Provisioned Appx package optimization completed." -ForegroundColor Green
+    }
+    catch {
+        Write-Host "Failed to run Optimize-AppxProvisionedPackages: ${_}" -ForegroundColor Red
+        $script:errorsFound = $true
+    }
+
+}
+
 # Function to discard a mounted WIM image with error handling
 function Discard-Image {
     param([string]$MountPath)
@@ -740,7 +886,8 @@ if (-not $choice -and -not $Gui) {
     Write-Host "4: Optimize WIM image for export (credits: abbodi1406)"
     Write-Host "5: Generate ISO (dual-boot BIOS/UEFI)"
     Write-Host "6: Optimize and Export Image to ESD (dism.exe)"
-    $choice = Read-Host "Enter your choice (0/1/2/3/4/5/6)"
+    Write-Host "7: Remove Safe Appx Provisioned Packages (Win10/Win11 auto-detect)"
+    $choice = Read-Host "Enter your choice (0/1/2/3/4/5/6/7)"
 }
 
 # Parse selected indexes once for all operations
@@ -879,6 +1026,11 @@ function Process-Edition {
             '1' { Run-DismRemove -MountPath $mountPath -Option "/Remove-Edge" }
             '2' { Run-DismRemove -MountPath $mountPath -Option "/Remove-EdgeBrowser" }
             '3' { Run-DismRemove -MountPath $mountPath -Option "/Remove-EdgeWebView" }
+            '7' {
+                $buildNumber = Get-ImageBuildNumber -WimPath $WimPath -Index $idx
+                $safePatterns = Get-SafeAppxPatterns -BuildNumber $buildNumber
+                Remove-SafeProvisionedAppx -MountPath $mountPath -Patterns $safePatterns
+            }
             default { Write-Host "Invalid choice."; exit 1 }
         }
         Commit-Wim -MountPath $mountPath
