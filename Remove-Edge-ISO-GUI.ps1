@@ -54,6 +54,7 @@ $GlobalIsoLabel = "Custom_Win11"
 # Todo (Done): Add Optimized Export Image to Rebuild WIM after edits to reduce size (credits: abbodi1406 from MDL Forums)
 # Todo: ESD to WIM conversion option for ESD inputs
 # Todo: Improve slow processing time with powershell dism modules
+# Todo: Pause-ForWait Script needs to be checked as it force closes the window post completion
 
 # Function to optimize/rebuild WIM image (credits: abbodi1406)
 function Optimize-WimImage {
