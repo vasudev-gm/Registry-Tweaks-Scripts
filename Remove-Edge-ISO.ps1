@@ -37,6 +37,7 @@ $scriptStartTime = Get-Date
 
 # Track errors across editions
 $script:errorsFound = $false
+$script:IsoExtractPreservePath = $null
 
 # Global ISO label
 $GlobalIsoLabel = "Custom_Win11"
@@ -89,6 +90,50 @@ function Optimize-WimImage {
     }
 }
 
+# Function to optimize/rebuild boot.wim image (similar to Optimize-WimImage)
+function Optimize-BootWimImage {
+    param(
+        [string]$BootWimPath,
+        [int[]]$Indexes = @()
+    )
+    Write-Host "Starting boot.wim optimization/export..." -ForegroundColor Cyan
+    # Ensure $BootWimPath points to sources\boot.wim under the root folder
+    if (!(Test-Path $BootWimPath) -or ($BootWimPath -notmatch "sources\\boot\.wim$")) {
+        $possibleBootWim = Join-Path ([IO.Path]::GetDirectoryName($BootWimPath)) 'sources\boot.wim'
+        if (Test-Path $possibleBootWim) {
+            $BootWimPath = $possibleBootWim
+        }
+        else {
+            Write-Error "Could not locate boot.wim under sources\ in the root folder."
+            return
+        }
+    }
+    $bootWimTemp = [IO.Path]::GetDirectoryName($BootWimPath) + '\boot_temp.wim'
+    $allImages = Get-WindowsImage -ImagePath $BootWimPath
+    if ($Indexes -and $Indexes.Count -gt 0) {
+        $exportIndexes = $Indexes
+    }
+    else {
+        $exportIndexes = $allImages | ForEach-Object { $_.ImageIndex }
+    }
+    try {
+        foreach ($i in $exportIndexes) {
+            Export-WindowsImage -SourceImagePath $BootWimPath -SourceIndex $i -CheckIntegrity -DestinationImagePath $bootWimTemp
+        }
+        if (Test-Path $bootWimTemp) {
+            Move-Item -Path $bootWimTemp -Destination $BootWimPath -Force
+            Write-Host "Optimized boot.wim has replaced original boot.wim" -ForegroundColor Green
+        }
+        else {
+            Write-Host "boot.wim optimization failed: boot_temp.wim not found." -ForegroundColor Red
+        }
+    }
+    catch {
+        Write-Host "boot.wim export failed or was interrupted. Cleaning up boot_temp.wim..." -ForegroundColor Red
+        if (Test-Path $bootWimTemp) { Remove-Item -Path $bootWimTemp -Force }
+    }
+}
+
 # Cleanup Old Mounts and Temp Folders
 function Cleanup-WimMounts {
     $oldWimMounts = Get-ChildItem -Path $env:TEMP -Directory -Filter 'WimMount_*' -ErrorAction SilentlyContinue
@@ -114,6 +159,16 @@ function Cleanup-WimMounts {
 function Cleanup-ISOExtracts {
     $oldIsoExtracts = Get-ChildItem -Path $env:TEMP -Directory -Filter 'ISOExtract_*' -ErrorAction SilentlyContinue
     foreach ($old in $oldIsoExtracts) {
+        if ($script:IsoExtractPreservePath) {
+            $preservePath = $script:IsoExtractPreservePath
+            try {
+                if ((Resolve-Path $old.FullName).Path -eq (Resolve-Path $preservePath).Path) {
+                    Write-Host "Preserving extracted ISO folder for manual export retry: $($old.FullName)" -ForegroundColor Yellow
+                    continue
+                }
+            }
+            catch { }
+        }
         try {
             Remove-Item -Path $old.FullName -Recurse -Force
             Write-Host "Removed old extracted ISO folder: $($old.FullName)" -ForegroundColor DarkGray
@@ -135,6 +190,83 @@ function Pause-ForExit {
     do {
         $resp = Read-Host "Press E or 0 to exit"
     } while ($resp -notmatch '^(?i:e|0)$')
+}
+
+function Get-DefaultIsoFileName {
+    param([string]$SourcePath)
+
+    $dateCode = (Get-Date).ToString('MMMyy')
+    $prefix = 'Windows'
+    try {
+        if ($SourcePath -and (Test-Path $SourcePath)) {
+            $installWim = Join-Path $SourcePath 'sources\install.wim'
+            $installEsd = Join-Path $SourcePath 'sources\install.esd'
+            $imagePath = $null
+            if (Test-Path $installWim) { $imagePath = $installWim }
+            elseif (Test-Path $installEsd) { $imagePath = $installEsd }
+
+            if ($imagePath) {
+                $img = Get-WindowsImage -ImagePath $imagePath -Index 1 -ErrorAction Stop
+                $verText = [string]$img.Version
+                if (-not [string]::IsNullOrWhiteSpace($verText)) {
+                    $build = ([version]$verText).Build
+                    if ($build -ge 22000) { $prefix = 'Win11' }
+                    else { $prefix = 'Win10' }
+                }
+            }
+        }
+    }
+    catch { }
+
+    return ("{0}_{1}.iso" -f $prefix, $dateCode)
+}
+
+function Export-UpdatedIsoIfRequested {
+    param(
+        [bool]$IsoWasExtracted,
+        [string]$TempExtractPath,
+        [string]$IsoLabel
+    )
+
+    if (-not $IsoWasExtracted -or -not (Test-Path $TempExtractPath)) {
+        return
+    }
+
+    $exportResp = [string](Read-Host "Export updated ISO before cleanup? (Y/N, default: Y)")
+    $exportResp = $exportResp.Trim()
+    if ([string]::IsNullOrWhiteSpace($exportResp)) { $exportResp = 'Y' }
+    if ($exportResp -notmatch '^(?i:y|yes)$') {
+        Write-Host "Skipping ISO export by user choice." -ForegroundColor Yellow
+        return
+    }
+
+    $defaultName = Get-DefaultIsoFileName -SourcePath $TempExtractPath
+    $outputResp = [string](Read-Host "Enter output ISO file name or full path (default: $defaultName)")
+    $outputResp = $outputResp.Trim()
+    if ([string]::IsNullOrWhiteSpace($outputResp)) { $outputResp = $defaultName }
+    if (-not ($outputResp.ToLower().EndsWith('.iso'))) { $outputResp = "$outputResp.iso" }
+    if ([IO.Path]::IsPathRooted($outputResp)) {
+        $outputIsoPath = $outputResp
+    }
+    else {
+        $outputIsoPath = Join-Path (Get-Location) $outputResp
+    }
+
+    $outDir = Split-Path -Path $outputIsoPath -Parent
+    if ($outDir -and -not (Test-Path $outDir)) {
+        New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+    }
+
+    Write-Host "Saving updated ISO as $outputIsoPath..." -ForegroundColor Cyan
+    $exportResult = New-DualBootIso -SourcePath $TempExtractPath -OutputIso $outputIsoPath -Label $IsoLabel
+    if (-not $exportResult) {
+        Write-Host "ISO export failed. Keeping extracted ISO folder for manual retry: $TempExtractPath" -ForegroundColor Yellow
+        $script:IsoExtractPreservePath = $TempExtractPath
+        $script:errorsFound = $true
+    }
+    else {
+        $script:IsoExtractPreservePath = $null
+    }
 }
 
 # Require elevation before any servicing work
@@ -422,15 +554,39 @@ function New-DualBootIso {
         (Join-Path (Join-Path $adkBase 'amd64') 'Oscdimg\oscdimg.exe'),
         (Join-Path (Join-Path $adkBase 'arm64') 'Oscdimg\oscdimg.exe'),
         (Join-Path (Join-Path $adkBase 'x86')   'Oscdimg\oscdimg.exe')
-    ) | Select-Object -Unique
+    )
+    $candidatePaths = @($candidatePaths | Select-Object -Unique)
     $oscdimgPath = $candidatePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
     if (-not $oscdimgPath) {
         $cmd = Get-Command oscdimg.exe -ErrorAction SilentlyContinue
         if ($cmd) { $oscdimgPath = $cmd.Source }
     }
+    if (-not $oscdimgPath -and (Test-Path $adkBase)) {
+        try {
+            $found = Get-ChildItem -Path $adkBase -Filter oscdimg.exe -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) { $oscdimgPath = $found.FullName }
+        }
+        catch { }
+    }
     if (-not $oscdimgPath) {
-        Write-Host "oscdimg.exe not found. Install Windows ADK or add it to PATH." -ForegroundColor Yellow
-        return $false
+        Write-Host "oscdimg.exe not found." -ForegroundColor Yellow
+        Write-Host "Searched default ADK paths:" -ForegroundColor Yellow
+        foreach ($p in $candidatePaths) { Write-Host " - $p" -ForegroundColor DarkYellow }
+        Write-Host "Install 'Windows Assessment and Deployment Kit (ADK)' with Deployment Tools, or add oscdimg.exe to PATH." -ForegroundColor Yellow
+        Write-Host "If ADK is installed, typical locations are under: $adkBase" -ForegroundColor Yellow
+
+        $customOscdimg = [string](Read-Host "If you have oscdimg.exe in a custom location, enter full path (or press Enter to cancel)")
+        $customOscdimg = $customOscdimg.Trim().Trim('"').Trim("'")
+        if ([string]::IsNullOrWhiteSpace($customOscdimg)) {
+            return $false
+        }
+        if ((Test-Path $customOscdimg -PathType Leaf) -and ([IO.Path]::GetFileName($customOscdimg) -ieq 'oscdimg.exe')) {
+            $oscdimgPath = $customOscdimg
+        }
+        else {
+            Write-Host "Invalid oscdimg.exe path: $customOscdimg" -ForegroundColor Red
+            return $false
+        }
     }
     if (-not (Test-Path $SourcePath)) {
         Write-Host "Source path '$SourcePath' does not exist." -ForegroundColor Red
@@ -565,7 +721,12 @@ Write-Host "*: All editions" -ForegroundColor Yellow
 
 
 
-$indexInput = Read-Host "Enter the index number(s) of the edition(s) to modify (e.g. 1,3,5 or * for all editions)"
+$indexInput = [string](Read-Host "Enter the index number(s) of the edition(s) to modify (e.g. 1,3,5 or * for all editions)")
+$indexInput = $indexInput.Trim()
+if ([string]::IsNullOrWhiteSpace($indexInput)) {
+    Write-Host "No edition index input provided. Exiting." -ForegroundColor Red
+    exit 1
+}
 # Parse selected indexes for use in all operations
 $selectedIndexes = @()
 if ($indexInput -eq '*') {
@@ -591,10 +752,17 @@ Write-Host "4: Optimize WIM image for export (credits: abbodi1406)"
 Write-Host "5: Generate ISO (dual-boot BIOS/UEFI)"
 Write-Host "6: Optimize and Export Image to ESD (dism.exe)"
 Write-Host "7: Remove Safe Appx Provisioned Packages (Win10/Win11 auto-detect)"
+Write-Host "8: Optimize boot.wim image for export"
 
-$choice = Read-Host "Enter your choice (0/1/2/3/4/5/6/7)"
+$choice = [string](Read-Host "Enter your choice (0/1/2/3/4/5/6/7/8)")
+$choice = $choice.Trim()
+if ($choice -notin @('0', '1', '2', '3', '4', '5', '6', '7', '8')) {
+    Write-Host "Invalid choice '$choice'. Exiting." -ForegroundColor Red
+    exit 1
+}
 if ($choice -eq '4') {
     Optimize-WimImage -WimPath $WimPath -Indexes $selectedIndexes
+    Export-UpdatedIsoIfRequested -IsoWasExtracted $isoExtracted -TempExtractPath $tempExtractPath -IsoLabel $GlobalIsoLabel
     # Cleanup and exit after optimization
     Cleanup-WimMounts
     Cleanup-ISOExtracts
@@ -634,6 +802,7 @@ if ($choice -eq '6') {
     # Pass selected indexes to Optimize-ESD
     $indexesToExport = $selectedIndexes | ForEach-Object { [int]$_ }
     Optimize-ESD -WimPath $WimPath -Indexes $indexesToExport
+    Export-UpdatedIsoIfRequested -IsoWasExtracted $isoExtracted -TempExtractPath $tempExtractPath -IsoLabel $GlobalIsoLabel
     Cleanup-WimMounts
     Cleanup-ISOExtracts
     Cleanup-Mountpoints
@@ -650,10 +819,37 @@ if ($choice -eq '6') {
     exit 0
 }
 
+if ($choice -eq '8') {
+    $bootWimPath = Join-Path (Split-Path $WimPath -Parent) 'boot.wim'
+    if (!(Test-Path $bootWimPath)) {
+        Write-Host "boot.wim was not found at expected path: $bootWimPath" -ForegroundColor Red
+        Cleanup-WimMounts
+        Cleanup-ISOExtracts
+        Cleanup-Mountpoints
+        Pause-ForExit
+        exit 1
+    }
+
+    Optimize-BootWimImage -BootWimPath $bootWimPath
+    Export-UpdatedIsoIfRequested -IsoWasExtracted $isoExtracted -TempExtractPath $tempExtractPath -IsoLabel $GlobalIsoLabel
+    Cleanup-WimMounts
+    Cleanup-ISOExtracts
+    Cleanup-Mountpoints
+    $scriptEndTime = Get-Date
+    $elapsed = $scriptEndTime - $scriptStartTime
+    if ($elapsed.TotalMinutes -ge 1) {
+        $elapsedMsg = "Time elapsed for boot.wim optimization: {0:N2} minutes" -f $elapsed.TotalMinutes
+    }
+    else {
+        $elapsedMsg = "Time elapsed for boot.wim optimization: {0:N2} seconds" -f $elapsed.TotalSeconds
+    }
+    Write-Host $elapsedMsg -ForegroundColor Cyan
+    Pause-ForExit
+    exit 0
+}
+
 # ISO generation operation
 if ($choice -eq '5') {
-    $dateCode = (Get-Date).ToString('MMMyy')
-    $outputIso = Join-Path (Get-Location) ("Win11_{0}.iso" -f $dateCode)
     # Determine source path for ISO creation
     $isoSourcePath = $null
     if ($isoExtracted -and (Test-Path $tempExtractPath)) {
@@ -662,6 +858,10 @@ if ($choice -eq '5') {
     elseif ($item -and $item.PSIsContainer) {
         $isoSourcePath = $cleanPath
     }
+
+    $defaultName = Get-DefaultIsoFileName -SourcePath $isoSourcePath
+    $outputIso = Join-Path (Get-Location) $defaultName
+
     if ($isoSourcePath) {
         Write-Host "Generating ISO from $isoSourcePath ..." -ForegroundColor Cyan
         try {
@@ -781,8 +981,8 @@ Optimize-WimImage -WimPath $WimPath -Indexes $selectedIndexes
 
 # If input was ISO, save updated ISO before cleanup via reusable function
 if ($isoExtracted -and (Test-Path $tempExtractPath)) {
-    $dateCode = (Get-Date).ToString('MMMyy')
-    $outputIso = Join-Path (Get-Location) ("Win11_{0}.iso" -f $dateCode)
+    $defaultName = Get-DefaultIsoFileName -SourcePath $tempExtractPath
+    $outputIso = Join-Path (Get-Location) $defaultName
     Write-Host "Saving updated ISO as $outputIso..." -ForegroundColor Cyan
     New-DualBootIso -SourcePath $tempExtractPath -OutputIso $outputIso -Label $GlobalIsoLabel
 }
