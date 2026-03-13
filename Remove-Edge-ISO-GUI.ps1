@@ -174,6 +174,20 @@ function Get-DefaultIsoFileName {
     return ("{0}_{1}.iso" -f $prefix, $dateCode)
 }
 
+function Read-YesNo {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Prompt
+    )
+
+    do {
+        $resp = [string](Read-Host "$Prompt (Y/N)")
+        $resp = $resp.Trim()
+    } while ($resp -notmatch '^(?i:y|yes|n|no)$')
+
+    return ($resp -match '^(?i:y|yes)$')
+}
+
 function Export-UpdatedIsoIfRequested {
     param(
         [bool]$IsoWasExtracted,
@@ -566,6 +580,59 @@ function Cleanup-Mountpoints {
     dism /Cleanup-Mountpoints
 }
 
+# Function to convert install.esd to install.wim using dism.exe
+function convert-ESDWIM {
+    param([string]$EsdPath)
+    Write-Host "Starting ESD to WIM conversion using dism.exe..." -ForegroundColor Cyan
+    if (!(Test-Path $EsdPath) -or ($EsdPath -notmatch "sources\\install\.esd$")) {
+        $possibleEsd = Join-Path ([IO.Path]::GetDirectoryName($EsdPath)) 'sources\install.esd'
+        if (Test-Path $possibleEsd) {
+            $EsdPath = $possibleEsd
+        }
+        else {
+            Write-Error "Could not locate install.esd under sources\ in the root folder."
+            return
+        }
+    }
+    $wimPath = [IO.Path]::GetDirectoryName($EsdPath) + '\install.wim'
+    $count = (Get-WindowsImage -ImagePath $EsdPath).Count
+    try {
+        for ($i = 1; $i -le $count; $i++) {
+            $dismArgs = @(
+                "/Export-Image",
+                "/SourceImageFile:$EsdPath",
+                "/SourceIndex:$i",
+                "/DestinationImageFile:$wimPath",
+                "/Compress:max",
+                "/CheckIntegrity"
+            )
+            Write-Host "Running: dism.exe $($dismArgs -join ' ')" -ForegroundColor Cyan
+            $proc = Start-Process -FilePath dism.exe -ArgumentList $dismArgs -NoNewWindow -Wait -PassThru
+            if ($proc.ExitCode -ne 0) {
+                Write-Host "dism.exe export failed for index $i with exit code $($proc.ExitCode)" -ForegroundColor Red
+                return
+            }
+        }
+        if (Test-Path $wimPath) {
+            Write-Host "Converted WIM has been created: $wimPath" -ForegroundColor Green
+            # Delete original install.esd after successful WIM conversion
+            try {
+                Remove-Item -Path $EsdPath -Force
+                Write-Host "Deleted original ESD: $EsdPath" -ForegroundColor Yellow
+            }
+            catch {
+                Write-Host "Could not delete original ESD: $EsdPath. ${_}" -ForegroundColor Red
+            }
+        }
+        else {
+            Write-Host "WIM export failed: install.wim not found." -ForegroundColor Red
+        }
+    }
+    catch {
+        Write-Host "dism.exe export failed or was interrupted." -ForegroundColor Red
+    }
+}
+
 # Elevate early to avoid re-prompting in GUI after restart
 Ensure-Admin
 
@@ -634,11 +701,74 @@ if (-not (Get-Module -ListAvailable -Name DISM)) {
     exit 1
 }
 
+# If install.esd is present under sources, allow conversion or ISO-only export flow.
+$script:SkipServicingForIsoExport = $false
+$script:IsoExportSourceRoot = $null
+$installDir = [IO.Path]::GetDirectoryName($WimPath)
+$esdCandidate = Join-Path $installDir 'install.esd'
+
+if ((-not (Test-Path $WimPath)) -and (Test-Path $esdCandidate)) {
+    $convertEsd = Read-YesNo -Prompt "Detected install.esd under sources. Convert ESD to WIM now?"
+    if ($convertEsd) {
+        Write-Host "Converting install.esd to install.wim..." -ForegroundColor Yellow
+        convert-ESDWIM -EsdPath $esdCandidate
+        if (-not (Test-Path $WimPath)) {
+            Write-Error "ESD to WIM conversion did not produce install.wim. Exiting."
+            exit 1
+        }
+    }
+    else {
+        Write-Host "Conversion cancelled. You can still export to ISO using install.esd." -ForegroundColor Yellow
+        $exportIsoNow = Read-YesNo -Prompt "Do you want to export to ISO now and skip servicing operations?"
+        if ($exportIsoNow) {
+            $script:IsoExportSourceRoot = Split-Path -Path $installDir -Parent
+            if (-not (Test-Path $script:IsoExportSourceRoot)) {
+                Write-Error "Could not resolve ISO source root from $installDir."
+                exit 1
+            }
+            $script:SkipServicingForIsoExport = $true
+        }
+        else {
+            Write-Error "install.wim is missing and conversion was declined. Cannot continue servicing."
+            exit 1
+        }
+    }
+}
+
 # Validate file extension
 if ($WimPath -notmatch "\.wim$") {
-    if ($WimPath -match "\.esd$") {
-        Write-Error "ESD files are unsupported. Please provide a WIM file."
-        exit 1
+    if ($WimPath -match "sources\\install\.esd$") {
+        $targetWimPath = Join-Path ([IO.Path]::GetDirectoryName($WimPath)) 'install.wim'
+        $convertEsd = Read-YesNo -Prompt "Detected install.esd under sources. Convert ESD to WIM now?"
+        if ($convertEsd) {
+            Write-Host "Converting install.esd to install.wim..." -ForegroundColor Yellow
+            convert-ESDWIM -EsdPath $WimPath
+            $WimPath = $targetWimPath
+            if (-not (Test-Path $WimPath)) {
+                Write-Error "ESD to WIM conversion failed to make install.wim. Exiting."
+                exit 1
+            }
+        }
+        elseif (Test-Path $targetWimPath) {
+            Write-Host "Skipping conversion and continuing servicing with existing install.wim." -ForegroundColor Yellow
+            $WimPath = $targetWimPath
+        }
+        else {
+            Write-Host "No install.wim is available. You can still export to ISO using install.esd." -ForegroundColor Yellow
+            $exportIsoNow = Read-YesNo -Prompt "Do you want to export to ISO now and skip servicing operations?"
+            if ($exportIsoNow) {
+                $script:IsoExportSourceRoot = Split-Path -Path ([IO.Path]::GetDirectoryName($WimPath)) -Parent
+                if (-not (Test-Path $script:IsoExportSourceRoot)) {
+                    Write-Error "Could not resolve ISO source root from $WimPath."
+                    exit 1
+                }
+                $script:SkipServicingForIsoExport = $true
+            }
+            else {
+                Write-Error "No install.wim is available and conversion was declined. Cannot continue servicing."
+                exit 1
+            }
+        }
     }
     else {
         Write-Error "File '$WimPath' is not a WIM file."
@@ -1020,6 +1150,32 @@ function Optimize-ESD {
     }
 }
 
+if ($script:SkipServicingForIsoExport) {
+    $sourceRoot = $script:IsoExportSourceRoot
+    if (-not $outputIso) {
+        $defaultName = Get-DefaultIsoFileName -SourcePath $sourceRoot
+        $outputIso = Join-Path (Get-Location) $defaultName
+    }
+    else {
+        if (-not ($outputIso.ToLower().EndsWith('.iso'))) { $outputIso = "$outputIso.iso" }
+        if (-not [IO.Path]::IsPathRooted($outputIso)) { $outputIso = (Join-Path (Get-Location) $outputIso) }
+    }
+    $outDir = Split-Path -Path $outputIso -Parent
+    if ($outDir -and -not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
+
+    Write-Host "Generating ISO from $sourceRoot ..." -ForegroundColor Cyan
+    $isoOk = New-DualBootIso -SourcePath $sourceRoot -OutputIso $outputIso -Label $GlobalIsoLabel
+    Cleanup-WimMounts
+    Cleanup-ISOExtracts
+    Cleanup-Mountpoints
+    if (-not $isoOk) {
+        Write-Error "ISO export failed."
+        exit 1
+    }
+    Write-Host "ISO export completed." -ForegroundColor Green
+    exit 0
+}
+
 # Ensure $WimPath exists before continuing
 if (!(Test-Path $WimPath)) {
     Write-Error "WIM file not found: $WimPath"
@@ -1179,6 +1335,10 @@ if ($choice -eq '5') {
     elseif ($item -and $item.PSIsContainer) {
         $isoSourcePath = $cleanPath
     }
+    elseif ($item -and -not $item.PSIsContainer -and ($cleanPath -match "sources\\install\.(wim|esd)$")) {
+        # If input is sources\install.wim or sources\install.esd, use the media root folder.
+        $isoSourcePath = Split-Path -Path (Split-Path -Path $cleanPath -Parent) -Parent
+    }
 
     $defaultName = Get-DefaultIsoFileName -SourcePath $isoSourcePath
     if (-not $outputIso) {
@@ -1249,59 +1409,6 @@ function Process-Edition {
     catch {
         Write-Host "Failed to commit edition index ${idx}: ${_}" -ForegroundColor Red
         $script:errorsFound = $true
-    }
-}
-
-# Function to convert install.esd to install.wim using dism.exe
-function convert-ESDWIM {
-    param([string]$EsdPath)
-    Write-Host "Starting ESD to WIM conversion using dism.exe..." -ForegroundColor Cyan
-    if (!(Test-Path $EsdPath) -or ($EsdPath -notmatch "sources\\install\.esd$")) {
-        $possibleEsd = Join-Path ([IO.Path]::GetDirectoryName($EsdPath)) 'sources\install.esd'
-        if (Test-Path $possibleEsd) {
-            $EsdPath = $possibleEsd
-        }
-        else {
-            Write-Error "Could not locate install.esd under sources\ in the root folder."
-            return
-        }
-    }
-    $wimPath = [IO.Path]::GetDirectoryName($EsdPath) + '\install.wim'
-    $count = (Get-WindowsImage -ImagePath $EsdPath).Count
-    try {
-        for ($i = 1; $i -le $count; $i++) {
-            $dismArgs = @(
-                "/Export-Image",
-                "/SourceImageFile:$EsdPath",
-                "/SourceIndex:$i",
-                "/DestinationImageFile:$wimPath",
-                "/Compress:max",
-                "/CheckIntegrity"
-            )
-            Write-Host "Running: dism.exe $($dismArgs -join ' ')" -ForegroundColor Cyan
-            $proc = Start-Process -FilePath dism.exe -ArgumentList $dismArgs -NoNewWindow -Wait -PassThru
-            if ($proc.ExitCode -ne 0) {
-                Write-Host "dism.exe export failed for index $i with exit code $($proc.ExitCode)" -ForegroundColor Red
-                return
-            }
-        }
-        if (Test-Path $wimPath) {
-            Write-Host "Converted WIM has been created: $wimPath" -ForegroundColor Green
-            # Delete original install.esd after successful WIM conversion
-            try {
-                Remove-Item -Path $EsdPath -Force
-                Write-Host "Deleted original ESD: $EsdPath" -ForegroundColor Yellow
-            }
-            catch {
-                Write-Host "Could not delete original ESD: $EsdPath. ${_}" -ForegroundColor Red
-            }
-        }
-        else {
-            Write-Host "WIM export failed: install.wim not found." -ForegroundColor Red
-        }
-    }
-    catch {
-        Write-Host "dism.exe export failed or was interrupted." -ForegroundColor Red
     }
 }
 
