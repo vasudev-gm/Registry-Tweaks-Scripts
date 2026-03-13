@@ -192,6 +192,20 @@ function Pause-ForExit {
     } while ($resp -notmatch '^(?i:e|0)$')
 }
 
+function Read-YesNo {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Prompt
+    )
+
+    do {
+        $resp = [string](Read-Host "$Prompt (Y/N)")
+        $resp = $resp.Trim()
+    } while ($resp -notmatch '^(?i:y|yes|n|no)$')
+
+    return ($resp -match '^(?i:y|yes)$')
+}
+
 function Get-DefaultIsoFileName {
     param([string]$SourcePath)
 
@@ -276,6 +290,168 @@ Cleanup-WimMounts
 Cleanup-ISOExtracts
 Cleanup-Mountpoints
 
+# Function to convert install.esd to install.wim using dism.exe
+function convert-ESDWIM {
+    param([string]$EsdPath)
+    Write-Host "Starting ESD to WIM conversion using dism.exe..." -ForegroundColor Cyan
+    if (!(Test-Path $EsdPath) -or ($EsdPath -notmatch "sources\\install\.esd$")) {
+        $possibleEsd = Join-Path ([IO.Path]::GetDirectoryName($EsdPath)) 'sources\install.esd'
+        if (Test-Path $possibleEsd) {
+            $EsdPath = $possibleEsd
+        }
+        else {
+            Write-Error "Could not locate install.esd under sources\ in the root folder."
+            return
+        }
+    }
+    $wimPath = [IO.Path]::GetDirectoryName($EsdPath) + '\install.wim'
+    $count = (Get-WindowsImage -ImagePath $EsdPath).Count
+    try {
+        for ($i = 1; $i -le $count; $i++) {
+            $dismArgs = @(
+                "/Export-Image",
+                "/SourceImageFile:$EsdPath",
+                "/SourceIndex:$i",
+                "/DestinationImageFile:$wimPath",
+                "/Compress:max",
+                "/CheckIntegrity"
+            )
+            Write-Host "Running: dism.exe $($dismArgs -join ' ')" -ForegroundColor Cyan
+            $proc = Start-Process -FilePath dism.exe -ArgumentList $dismArgs -NoNewWindow -Wait -PassThru
+            if ($proc.ExitCode -ne 0) {
+                Write-Host "dism.exe export failed for index $i with exit code $($proc.ExitCode)" -ForegroundColor Red
+                return
+            }
+        }
+        if (Test-Path $wimPath) {
+            Write-Host "Converted WIM has been created: $wimPath" -ForegroundColor Green
+            # Delete original install.esd after successful WIM conversion
+            try {
+                Remove-Item -Path $EsdPath -Force
+                Write-Host "Deleted original ESD: $EsdPath" -ForegroundColor Yellow
+            }
+            catch {
+                Write-Host "Could not delete original ESD: $EsdPath. ${_}" -ForegroundColor Red
+            }
+        }
+        else {
+            Write-Host "WIM export failed: install.wim not found." -ForegroundColor Red
+        }
+    }
+    catch {
+        Write-Host "dism.exe export failed or was interrupted." -ForegroundColor Red
+    }
+}
+
+# Reusable ISO generation function using dual-boot BIOS/UEFI boot files with relative paths
+function New-DualBootIso {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)] [string]$SourcePath,
+        [Parameter(Mandatory = $true)] [string]$OutputIso,
+        [string]$Label = $GlobalIsoLabel
+    )
+    # Resolve oscdimg.exe from Windows ADK per architecture, fallback to PATH
+    $adkBase = "C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools"
+    $archMap = @{ 'AMD64' = 'amd64'; 'ARM64' = 'arm64'; 'x86' = 'x86' }
+    $procArch = $env:PROCESSOR_ARCHITECTURE
+    $archFolder = $archMap[$procArch]
+    $candidatePaths = @()
+    if ($archFolder) { $candidatePaths += (Join-Path (Join-Path $adkBase $archFolder) 'Oscdimg\oscdimg.exe') }
+    $candidatePaths += @(
+        (Join-Path (Join-Path $adkBase 'amd64') 'Oscdimg\oscdimg.exe'),
+        (Join-Path (Join-Path $adkBase 'arm64') 'Oscdimg\oscdimg.exe'),
+        (Join-Path (Join-Path $adkBase 'x86')   'Oscdimg\oscdimg.exe')
+    )
+    $candidatePaths = @($candidatePaths | Select-Object -Unique)
+    $oscdimgPath = $candidatePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $oscdimgPath) {
+        $cmd = Get-Command oscdimg.exe -ErrorAction SilentlyContinue
+        if ($cmd) { $oscdimgPath = $cmd.Source }
+    }
+    if (-not $oscdimgPath -and (Test-Path $adkBase)) {
+        try {
+            $found = Get-ChildItem -Path $adkBase -Filter oscdimg.exe -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) { $oscdimgPath = $found.FullName }
+        }
+        catch { }
+    }
+    if (-not $oscdimgPath) {
+        Write-Host "oscdimg.exe not found." -ForegroundColor Yellow
+        Write-Host "Searched default ADK paths:" -ForegroundColor Yellow
+        foreach ($p in $candidatePaths) { Write-Host " - $p" -ForegroundColor DarkYellow }
+        Write-Host "Install 'Windows Assessment and Deployment Kit (ADK)' with Deployment Tools, or add oscdimg.exe to PATH." -ForegroundColor Yellow
+        Write-Host "If ADK is installed, typical locations are under: $adkBase" -ForegroundColor Yellow
+
+        $customOscdimg = [string](Read-Host "If you have oscdimg.exe in a custom location, enter full path (or press Enter to cancel)")
+        $customOscdimg = $customOscdimg.Trim().Trim('"').Trim("'")
+        if ([string]::IsNullOrWhiteSpace($customOscdimg)) {
+            return $false
+        }
+        if ((Test-Path $customOscdimg -PathType Leaf) -and ([IO.Path]::GetFileName($customOscdimg) -ieq 'oscdimg.exe')) {
+            $oscdimgPath = $customOscdimg
+        }
+        else {
+            Write-Host "Invalid oscdimg.exe path: $customOscdimg" -ForegroundColor Red
+            return $false
+        }
+    }
+    if (-not (Test-Path $SourcePath)) {
+        Write-Host "Source path '$SourcePath' does not exist." -ForegroundColor Red
+        return $false
+    }
+    Push-Location $SourcePath
+    $biosBootRel = "boot\etfsboot.com"
+    $uefiBootRel = "efi\microsoft\boot\efisys.bin"
+    $oscdimgDir = Split-Path $oscdimgPath -Parent
+    if (-not (Test-Path $biosBootRel)) {
+        $adkEtfs = Join-Path $oscdimgDir 'etfsboot.com'
+        if (Test-Path $adkEtfs) {
+            if (-not (Test-Path 'boot')) { New-Item -ItemType Directory -Path 'boot' | Out-Null }
+            Copy-Item -Path $adkEtfs -Destination $biosBootRel -Force -ErrorAction SilentlyContinue
+        }
+    }
+    if (-not (Test-Path $uefiBootRel)) {
+        $altUefi = "efi\microsoft\boot\efisys_noprompt.bin"
+        if (Test-Path $altUefi) { $uefiBootRel = $altUefi }
+        else {
+            $adkEfi = Join-Path $oscdimgDir 'efisys.bin'
+            $adkEfiNoPrompt = Join-Path $oscdimgDir 'efisys_noprompt.bin'
+            if (Test-Path $adkEfi -or (Test-Path $adkEfiNoPrompt)) {
+                if (-not (Test-Path 'efi\microsoft\boot')) { New-Item -ItemType Directory -Path 'efi\microsoft\boot' -Force | Out-Null }
+                if (Test-Path $adkEfi) { Copy-Item -Path $adkEfi -Destination $uefiBootRel -Force -ErrorAction SilentlyContinue }
+                if ((-not (Test-Path $uefiBootRel)) -and (Test-Path $adkEfiNoPrompt)) {
+                    Copy-Item -Path $adkEfiNoPrompt -Destination $altUefi -Force -ErrorAction SilentlyContinue
+                    $uefiBootRel = $altUefi
+                }
+            }
+        }
+    }
+    try {
+        $hasBootData = (Test-Path $biosBootRel) -and (Test-Path $uefiBootRel)
+        $oscdimgParams = @("-m", "-o", "-u2")
+        if ($hasBootData) {
+            $data = "2#p0,e,b$biosBootRel#pEF,e,b$uefiBootRel"
+            $oscdimgParams += @("-bootdata:$data", "-u2")
+        }
+        $oscdimgParams += @("-udfver102", "-l$Label", $SourcePath, $OutputIso)
+        Write-Verbose ("oscdimg: {0}" -f $oscdimgPath)
+        Write-Verbose ("args: {0}" -f ($oscdimgParams -join ' '))
+        $proc = Start-Process -FilePath $oscdimgPath -ArgumentList $oscdimgParams -NoNewWindow -PassThru -Wait
+        if ($proc.ExitCode -ne 0) { throw "oscdimg failed with exit code $($proc.ExitCode)" }
+        if ($hasBootData) { Write-Host "ISO saved as $OutputIso (dual-boot BIOS/UEFI)" -ForegroundColor Green }
+        else { Write-Host "ISO saved as $OutputIso" -ForegroundColor Green }
+        return $true
+    }
+    catch {
+        Write-Host "oscdimg execution failed: ${_}" -ForegroundColor Red
+        return $false
+    }
+    finally {
+        Pop-Location
+    }
+}
+
 # Remove extra quotes if present
 $cleanPath = $IsoOrWimPath.Trim('"').Trim()
 $isoExtracted = $false
@@ -322,11 +498,72 @@ if (-not (Get-Module -ListAvailable -Name DISM)) {
     exit 1
 }
 
+# If install.esd is present under sources, convert it to install.wim before proceeding.
+$installDir = [IO.Path]::GetDirectoryName($WimPath)
+$esdCandidate = Join-Path $installDir 'install.esd'
+
+if ((-not (Test-Path $WimPath)) -and (Test-Path $esdCandidate)) {
+    $convertEsd = Read-YesNo -Prompt "Detected install.esd under sources. Convert ESD to WIM now?"
+    if ($convertEsd) {
+        Write-Host "Converting install.esd to install.wim..." -ForegroundColor Yellow
+        convert-ESDWIM -EsdPath $esdCandidate
+        if (-not (Test-Path $WimPath)) {
+            Write-Error "ESD to WIM conversion did not produce install.wim. Exiting."
+            exit 1
+        }
+    }
+    else {
+        Write-Host "Conversion Cancelled! You can still export to ISO using the existing install.esd." -ForegroundColor Yellow
+        $exportIsoNow = Read-YesNo -Prompt "Do you want to export to ISO now and skip servicing operations?"
+        if ($exportIsoNow) {
+            $sourceRoot = Split-Path -Path $installDir -Parent
+            if (-not (Test-Path $sourceRoot)) {
+                Write-Error "Could not resolve ISO source root from $installDir."
+                exit 1
+            }
+
+            $defaultName = Get-DefaultIsoFileName -SourcePath $sourceRoot
+            $outputIso = Join-Path (Get-Location) $defaultName
+            Write-Host "Generating ISO from $sourceRoot ..." -ForegroundColor Cyan
+            $isoOk = New-DualBootIso -SourcePath $sourceRoot -OutputIso $outputIso -Label $GlobalIsoLabel
+            Cleanup-WimMounts
+            Cleanup-ISOExtracts
+            Cleanup-Mountpoints
+            if (-not $isoOk) {
+                Write-Error "ISO export failed."
+                exit 1
+            }
+            Write-Host "ISO export completed." -ForegroundColor Green
+            exit 0
+        }
+
+        Write-Error "install.wim is missing and conversion was declined. Cannot continue servicing."
+        exit 1
+    }
+}
+
 # Validate file extension
 if ($WimPath -notmatch "\.wim$") {
-    if ($WimPath -match "\.esd$") {
-        Write-Error "ESD files are unsupported. Please provide a WIM file."
-        exit 1
+    if ($WimPath -match "sources\\install\.esd$") {
+        $targetWimPath = Join-Path ([IO.Path]::GetDirectoryName($WimPath)) 'install.wim'
+        $convertEsd = Read-YesNo -Prompt "Detected install.esd under sources. Convert ESD to WIM now?"
+        if ($convertEsd) {
+            Write-Host "Converting install.esd to install.wim..." -ForegroundColor Yellow
+            convert-ESDWIM -EsdPath $WimPath
+            $WimPath = $targetWimPath
+            if (-not (Test-Path $WimPath)) {
+                Write-Error "ESD to WIM conversion failed to make install.wim. Exiting."
+                exit 1
+            }
+        }
+        elseif (Test-Path $targetWimPath) {
+            Write-Host "Skipping conversion and continuing servicing with existing install.wim." -ForegroundColor Yellow
+            $WimPath = $targetWimPath
+        }
+        else {
+            Write-Error "No install.wim is available and conversion was declined. Cannot continue servicing."
+            exit 1
+        }
     }
     else {
         Write-Error "File '$WimPath' is not a WIM file."
@@ -532,115 +769,6 @@ function Discard-Image {
         else {
             Write-Host "Could not discard mounted image at ${MountPath}: ${_}" -ForegroundColor Red
         }
-    }
-}
-
-# Reusable ISO generation function using dual-boot BIOS/UEFI boot files with relative paths
-function New-DualBootIso {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)] [string]$SourcePath,
-        [Parameter(Mandatory = $true)] [string]$OutputIso,
-        [string]$Label = $GlobalIsoLabel
-    )
-    # Resolve oscdimg.exe from Windows ADK per architecture, fallback to PATH
-    $adkBase = "C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools"
-    $archMap = @{ 'AMD64' = 'amd64'; 'ARM64' = 'arm64'; 'x86' = 'x86' }
-    $procArch = $env:PROCESSOR_ARCHITECTURE
-    $archFolder = $archMap[$procArch]
-    $candidatePaths = @()
-    if ($archFolder) { $candidatePaths += (Join-Path (Join-Path $adkBase $archFolder) 'Oscdimg\oscdimg.exe') }
-    $candidatePaths += @(
-        (Join-Path (Join-Path $adkBase 'amd64') 'Oscdimg\oscdimg.exe'),
-        (Join-Path (Join-Path $adkBase 'arm64') 'Oscdimg\oscdimg.exe'),
-        (Join-Path (Join-Path $adkBase 'x86')   'Oscdimg\oscdimg.exe')
-    )
-    $candidatePaths = @($candidatePaths | Select-Object -Unique)
-    $oscdimgPath = $candidatePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
-    if (-not $oscdimgPath) {
-        $cmd = Get-Command oscdimg.exe -ErrorAction SilentlyContinue
-        if ($cmd) { $oscdimgPath = $cmd.Source }
-    }
-    if (-not $oscdimgPath -and (Test-Path $adkBase)) {
-        try {
-            $found = Get-ChildItem -Path $adkBase -Filter oscdimg.exe -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($found) { $oscdimgPath = $found.FullName }
-        }
-        catch { }
-    }
-    if (-not $oscdimgPath) {
-        Write-Host "oscdimg.exe not found." -ForegroundColor Yellow
-        Write-Host "Searched default ADK paths:" -ForegroundColor Yellow
-        foreach ($p in $candidatePaths) { Write-Host " - $p" -ForegroundColor DarkYellow }
-        Write-Host "Install 'Windows Assessment and Deployment Kit (ADK)' with Deployment Tools, or add oscdimg.exe to PATH." -ForegroundColor Yellow
-        Write-Host "If ADK is installed, typical locations are under: $adkBase" -ForegroundColor Yellow
-
-        $customOscdimg = [string](Read-Host "If you have oscdimg.exe in a custom location, enter full path (or press Enter to cancel)")
-        $customOscdimg = $customOscdimg.Trim().Trim('"').Trim("'")
-        if ([string]::IsNullOrWhiteSpace($customOscdimg)) {
-            return $false
-        }
-        if ((Test-Path $customOscdimg -PathType Leaf) -and ([IO.Path]::GetFileName($customOscdimg) -ieq 'oscdimg.exe')) {
-            $oscdimgPath = $customOscdimg
-        }
-        else {
-            Write-Host "Invalid oscdimg.exe path: $customOscdimg" -ForegroundColor Red
-            return $false
-        }
-    }
-    if (-not (Test-Path $SourcePath)) {
-        Write-Host "Source path '$SourcePath' does not exist." -ForegroundColor Red
-        return $false
-    }
-    Push-Location $SourcePath
-    $biosBootRel = "boot\etfsboot.com"
-    $uefiBootRel = "efi\microsoft\boot\efisys.bin"
-    $oscdimgDir = Split-Path $oscdimgPath -Parent
-    if (-not (Test-Path $biosBootRel)) {
-        $adkEtfs = Join-Path $oscdimgDir 'etfsboot.com'
-        if (Test-Path $adkEtfs) {
-            if (-not (Test-Path 'boot')) { New-Item -ItemType Directory -Path 'boot' | Out-Null }
-            Copy-Item -Path $adkEtfs -Destination $biosBootRel -Force -ErrorAction SilentlyContinue
-        }
-    }
-    if (-not (Test-Path $uefiBootRel)) {
-        $altUefi = "efi\microsoft\boot\efisys_noprompt.bin"
-        if (Test-Path $altUefi) { $uefiBootRel = $altUefi }
-        else {
-            $adkEfi = Join-Path $oscdimgDir 'efisys.bin'
-            $adkEfiNoPrompt = Join-Path $oscdimgDir 'efisys_noprompt.bin'
-            if (Test-Path $adkEfi -or (Test-Path $adkEfiNoPrompt)) {
-                if (-not (Test-Path 'efi\microsoft\boot')) { New-Item -ItemType Directory -Path 'efi\microsoft\boot' -Force | Out-Null }
-                if (Test-Path $adkEfi) { Copy-Item -Path $adkEfi -Destination $uefiBootRel -Force -ErrorAction SilentlyContinue }
-                if ((-not (Test-Path $uefiBootRel)) -and (Test-Path $adkEfiNoPrompt)) {
-                    Copy-Item -Path $adkEfiNoPrompt -Destination $altUefi -Force -ErrorAction SilentlyContinue
-                    $uefiBootRel = $altUefi
-                }
-            }
-        }
-    }
-    try {
-        $hasBootData = (Test-Path $biosBootRel) -and (Test-Path $uefiBootRel)
-        $oscdimgParams = @("-m", "-o", "-u2")
-        if ($hasBootData) {
-            $data = "2#p0,e,b$biosBootRel#pEF,e,b$uefiBootRel"
-            $oscdimgParams += @("-bootdata:$data", "-u2")
-        }
-        $oscdimgParams += @("-udfver102", "-l$Label", $SourcePath, $OutputIso)
-        Write-Verbose ("oscdimg: {0}" -f $oscdimgPath)
-        Write-Verbose ("args: {0}" -f ($oscdimgParams -join ' '))
-        $proc = Start-Process -FilePath $oscdimgPath -ArgumentList $oscdimgParams -NoNewWindow -PassThru -Wait
-        if ($proc.ExitCode -ne 0) { throw "oscdimg failed with exit code $($proc.ExitCode)" }
-        if ($hasBootData) { Write-Host "ISO saved as $OutputIso (dual-boot BIOS/UEFI)" -ForegroundColor Green }
-        else { Write-Host "ISO saved as $OutputIso" -ForegroundColor Green }
-        return $true
-    }
-    catch {
-        Write-Host "oscdimg execution failed: ${_}" -ForegroundColor Red
-        return $false
-    }
-    finally {
-        Pop-Location
     }
 }
 
@@ -858,6 +986,10 @@ if ($choice -eq '5') {
     elseif ($item -and $item.PSIsContainer) {
         $isoSourcePath = $cleanPath
     }
+    elseif ($item -and -not $item.PSIsContainer -and ($cleanPath -match "sources\\install\.(wim|esd)$")) {
+        # If input is sources\install.wim or sources\install.esd, use the media root folder.
+        $isoSourcePath = Split-Path -Path (Split-Path -Path $cleanPath -Parent) -Parent
+    }
 
     $defaultName = Get-DefaultIsoFileName -SourcePath $isoSourcePath
     $outputIso = Join-Path (Get-Location) $defaultName
@@ -914,59 +1046,6 @@ function Process-Edition {
     }
     catch {
         Write-Host "Failed to commit edition index ${idx}: ${_}" -ForegroundColor Red
-    }
-}
-
-# Function to convert install.esd to install.wim using dism.exe
-function convert-ESDWIM {
-    param([string]$EsdPath)
-    Write-Host "Starting ESD to WIM conversion using dism.exe..." -ForegroundColor Cyan
-    if (!(Test-Path $EsdPath) -or ($EsdPath -notmatch "sources\\install\.esd$")) {
-        $possibleEsd = Join-Path ([IO.Path]::GetDirectoryName($EsdPath)) 'sources\install.esd'
-        if (Test-Path $possibleEsd) {
-            $EsdPath = $possibleEsd
-        }
-        else {
-            Write-Error "Could not locate install.esd under sources\ in the root folder."
-            return
-        }
-    }
-    $wimPath = [IO.Path]::GetDirectoryName($EsdPath) + '\install.wim'
-    $count = (Get-WindowsImage -ImagePath $EsdPath).Count
-    try {
-        for ($i = 1; $i -le $count; $i++) {
-            $dismArgs = @(
-                "/Export-Image",
-                "/SourceImageFile:$EsdPath",
-                "/SourceIndex:$i",
-                "/DestinationImageFile:$wimPath",
-                "/Compress:max",
-                "/CheckIntegrity"
-            )
-            Write-Host "Running: dism.exe $($dismArgs -join ' ')" -ForegroundColor Cyan
-            $proc = Start-Process -FilePath dism.exe -ArgumentList $dismArgs -NoNewWindow -Wait -PassThru
-            if ($proc.ExitCode -ne 0) {
-                Write-Host "dism.exe export failed for index $i with exit code $($proc.ExitCode)" -ForegroundColor Red
-                return
-            }
-        }
-        if (Test-Path $wimPath) {
-            Write-Host "Converted WIM has been created: $wimPath" -ForegroundColor Green
-            # Delete original install.esd after successful WIM conversion
-            try {
-                Remove-Item -Path $EsdPath -Force
-                Write-Host "Deleted original ESD: $EsdPath" -ForegroundColor Yellow
-            }
-            catch {
-                Write-Host "Could not delete original ESD: $EsdPath. ${_}" -ForegroundColor Red
-            }
-        }
-        else {
-            Write-Host "WIM export failed: install.wim not found." -ForegroundColor Red
-        }
-    }
-    catch {
-        Write-Host "dism.exe export failed or was interrupted." -ForegroundColor Red
     }
 }
 
