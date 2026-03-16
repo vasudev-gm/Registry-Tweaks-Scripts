@@ -36,7 +36,11 @@ Added scripts to download Brave, DX/VC++ Redist and IrfanView to get latest vers
 
 UWP Bloatware list from [Edugeek Forum][def14]
 
-Thanks to abbodi1406, htfx, exurd, emil and ThioJoe for scripts and repacks
+Svchost Split Threshold tweak for Windows 10 and 11 [Service_Split][def15]
+
+Thanks to abbodi1406, htfx, exurd, emil, Shawn Brink, ShadowWhisperer and ThioJoe for scripts and repacks
+
+Converted some of the registry tweaks into .reg files for easier use and added some new ones using GH Copilot GPT-5.3 Codex. I will be adding more in the future.
 
 [def]: https://forums.mydigitallife.net/threads/repack-directx-end-user-runtime-june-2010.84785/
 [def2]: https://github.com/abbodi1406
@@ -52,3 +56,4 @@ Thanks to abbodi1406, htfx, exurd, emil and ThioJoe for scripts and repacks
 [def12]: https://github.com/exurd/Windows-Sandbox-Tools/blob/vcredist_aio_script/Installer%20Scripts/Install%20VC%20Redist%20AIO.ps1
 [def13]: https://gist.github.com/emilwojcik93/ef790a6b12c8e9358bbc52ed76fb495c
 [def14]: https://www.edugeek.net/forums/topic/219203-remove-appx-packages/
+[def15]: https://github.com/ShadowWhisperer/Service-Split/blob/main/Service_Split.bat

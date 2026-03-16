@@ -1,0 +1,133 @@
+Windows Registry Editor Version 5.00
+
+; Consolidated registry tweaks from selected W10/W11 .reg files
+; Generated: 2026-03-16
+
+; Enable verbose service startup/shutdown messages
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System]
+"VerboseStatus"=dword:00000001
+
+; Increase icon cache to 4MB
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer]
+"Max Cached Icons"="4096"
+
+; Keep recent docs history enabled for MSO-related policy tweak
+[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer]
+"NoRecentDocsHistory"=dword:00000000
+"NoDriveTypeAutoRun"=-
+
+; Remove "Look for an app in the Store" in Open With
+[HKEY_CURRENT_USER\Software\Policies\Microsoft\Windows\Explorer]
+"NoUseStoreOpenWith"=-
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Explorer]
+"NoUseStoreOpenWith"=dword:00000001
+
+; Remove OneDrive from Navigation Panel
+[-HKEY_CLASSES_ROOT\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}\ShellFolder]
+"Attributes"=dword:f080004d
+
+; Remove shortcut arrow text suffix
+[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer]
+"link"=hex:00,00,00,00
+
+; Zero startup delay
+[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize]
+"Startupdelayinmsec"=dword:00000000
+
+; Disable AutoPlay globally
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer]
+"NoDriveTypeAutoRun"=dword:000000ff
+
+; Enable Do Not Track in legacy Edge (EdgeHTML)
+[HKEY_CURRENT_USER\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppContainer\Storage\microsoft.microsoftedge_8wekyb3d8bbwe\MicrosoftEdge\Main]
+"DoNotTrack"=dword:00000001
+
+; Disable Cortana but keep search
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Windows Search]
+"AllowCortana"=dword:00000000
+
+; Add Install context menu for CAB files
+; Created by: Shawn Brink
+; Created on: October 6th 2016
+; Updated on: March 16th 2026
+; Tutorial: http://www.tenforums.com/tutorials/66170-cab-file-add-install-context-menu-windows-10-a.html
+; Tutorial: https://www.elevenforum.com/t/add-install-cab-context-menu-in-windows-11.2928/
+[-HKEY_CLASSES_ROOT\CABFolder\Shell\RunAs]
+
+[HKEY_CLASSES_ROOT\CABFolder\Shell\RunAs]
+@="Install"
+"HasLUAShield"=""
+
+[HKEY_CLASSES_ROOT\CABFolder\Shell\RunAs\Command]
+@="cmd /k dism /online /add-package /packagepath:\"%1\""
+
+; Command Prompt and PowerShell context menu entries
+; Source: Command Prompt.reg
+; https://blogs.msdn.microsoft.com/andrew_richards/2017/03/01/enhancing-the-open-command-prompt-here-shift-right-click-context-menu-experience/
+
+[HKEY_CLASSES_ROOT\Directory\shell\01MenuCmd]
+"MUIVerb"="Command Prompts"
+"Icon"="cmd.exe"
+"ExtendedSubCommandsKey"="Directory\\ContextMenus\\MenuCmd"
+
+[HKEY_CLASSES_ROOT\Directory\background\shell\01MenuCmd]
+"MUIVerb"="Command Prompts"
+"Icon"="cmd.exe"
+"ExtendedSubCommandsKey"="Directory\\ContextMenus\\MenuCmd"
+
+[HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuCmd\shell\open]
+"MUIVerb"="Command Prompt"
+"Icon"="cmd.exe"
+
+[HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuCmd\shell\open\command]
+@="cmd.exe /s /k pushd \"%V\""
+
+[HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuCmd\shell\runas]
+"MUIVerb"="Command Prompt Elevated"
+"Icon"="cmd.exe"
+"HasLUAShield"=""
+
+[HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuCmd\shell\runas\command]
+@="cmd.exe /s /k pushd \"%V\""
+
+; PowerShell
+
+[HKEY_CLASSES_ROOT\Directory\shell\02MenuPowerShell]
+"MUIVerb"="PowerShell Prompts"
+"Icon"="powershell.exe"
+"ExtendedSubCommandsKey"="Directory\\ContextMenus\\MenuPowerShell"
+
+[HKEY_CLASSES_ROOT\Directory\background\shell\02MenuPowerShell]
+"MUIVerb"="PowerShell Prompts"
+"Icon"="powershell.exe"
+"ExtendedSubCommandsKey"="Directory\\ContextMenus\\MenuPowerShell"
+
+[HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuPowerShell\shell\open]
+"MUIVerb"="PowerShell"
+"Icon"="powershell.exe"
+
+[HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuPowerShell\shell\open\command]
+@="powershell.exe -noexit -command Set-Location '%V'"
+
+[HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuPowerShell\shell\runas]
+"MUIVerb"="PowerShell Elevated"
+"Icon"="powershell.exe"
+"HasLUAShield"=""
+
+[HKEY_CLASSES_ROOT\Directory\ContextMenus\MenuPowerShell\shell\runas\command]
+@="powershell.exe -noexit -command Set-Location '%V'"
+
+; Ensure OS entries are on the Extended menu (Shift-Right Click)
+
+[HKEY_CLASSES_ROOT\Directory\shell\cmd]
+"Extended"=""
+
+[HKEY_CLASSES_ROOT\Directory\background\shell\cmd]
+"Extended"=""
+
+[HKEY_CLASSES_ROOT\Directory\shell\Powershell]
+"Extended"=""
+
+[HKEY_CLASSES_ROOT\Directory\background\shell\Powershell]
+"Extended"=""
