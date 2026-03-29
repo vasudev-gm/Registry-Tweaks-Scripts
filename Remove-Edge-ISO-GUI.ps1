@@ -6,7 +6,9 @@ param(
     [Parameter(Mandatory = $false)]
     [string]$IsoOrWimPath,
     [switch]$Gui,
-    [switch]$NoElevate
+    [switch]$NoElevate,
+    [Parameter(Mandatory = $false)]
+    [string]$OriginalCwd
 )
 
 # Import only required modules
@@ -23,6 +25,7 @@ function Ensure-Admin {
         return
     }
     try {
+        $launchDir = (Get-Location).Path
         # Determine current PowerShell executable and script path
         $psExe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
         $scriptPath = $PSCommandPath
@@ -31,8 +34,9 @@ function Ensure-Admin {
         $elevArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $scriptPath)
         if ($Gui) { $elevArgs += '-Gui' }
         if ($IsoOrWimPath) { $elevArgs += @('-IsoOrWimPath', $IsoOrWimPath) }
+        if ($launchDir) { $elevArgs += @('-OriginalCwd', $launchDir) }
         if ($NoElevate) { $elevArgs += '-NoElevate' }
-        Start-Process -FilePath $psExe -ArgumentList $elevArgs -Verb RunAs | Out-Null
+        Start-Process -FilePath $psExe -ArgumentList $elevArgs -WorkingDirectory $launchDir -Verb RunAs | Out-Null
         exit 0
     }
     catch {
@@ -635,6 +639,10 @@ function convert-ESDWIM {
 
 # Elevate early to avoid re-prompting in GUI after restart
 Ensure-Admin
+
+if ($OriginalCwd -and (Test-Path $OriginalCwd -PathType Container)) {
+    Set-Location -Path $OriginalCwd
+}
 
 Cleanup-WimMounts
 Cleanup-ISOExtracts

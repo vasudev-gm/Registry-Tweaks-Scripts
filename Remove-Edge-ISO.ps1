@@ -4,7 +4,9 @@
 
 param(
     [Parameter(Mandatory = $true)]
-    [string]$IsoOrWimPath
+    [string]$IsoOrWimPath,
+    [Parameter(Mandatory = $false)]
+    [string]$OriginalCwd
 )
 
 # Check for Admin Privileges and auto-elevate early
@@ -12,11 +14,12 @@ function Ensure-Admin {
     $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
     if ($isAdmin) { return }
     try {
+        $launchDir = (Get-Location).Path
         $psExe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
         $scriptPath = $PSCommandPath
         if (-not $scriptPath) { $scriptPath = $MyInvocation.MyCommand.Path }
-        $elevArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $scriptPath, '-IsoOrWimPath', $IsoOrWimPath)
-        Start-Process -FilePath $psExe -ArgumentList $elevArgs -Verb RunAs | Out-Null
+        $elevArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $scriptPath, '-IsoOrWimPath', $IsoOrWimPath, '-OriginalCwd', $launchDir)
+        Start-Process -FilePath $psExe -ArgumentList $elevArgs -WorkingDirectory $launchDir -Verb RunAs | Out-Null
         exit 0
     }
     catch {
@@ -26,6 +29,10 @@ function Ensure-Admin {
 }
 
 Ensure-Admin
+
+if ($OriginalCwd -and (Test-Path $OriginalCwd -PathType Container)) {
+    Set-Location -Path $OriginalCwd
+}
 
 # Import only required modules
 Import-Module -Name Dism -ErrorAction Stop
