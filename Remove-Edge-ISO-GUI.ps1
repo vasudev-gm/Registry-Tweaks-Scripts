@@ -350,6 +350,12 @@ function Show-MinimalGui {
             $clbIdx.BeginUpdate()
             $clbIdx.Items.Clear() | Out-Null
             [void]$clbIdx.Items.Add('* - All editions')
+            $selectedOp = $cbOp.SelectedItem
+            if ($selectedOp -and $selectedOp -like '8*') {
+                # For boot.wim optimization, only show All Editions
+                $clbIdx.SetItemChecked(0, $true)
+                return
+            }
             $pathText = ($tbPath.Text).Trim()
             if ([string]::IsNullOrWhiteSpace($pathText)) { $clbIdx.SetItemChecked(0, $true); return }
 
@@ -473,6 +479,7 @@ function Show-MinimalGui {
     $cbOp.Add_SelectedIndexChanged({
             $isIsoGenLocal = ($cbOp.SelectedItem -like '5*')
             & $setIsoFieldsVisibility $isIsoGenLocal
+            & $populateEditions
         })
 
     # Elevation option
