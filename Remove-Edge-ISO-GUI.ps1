@@ -192,6 +192,13 @@ function Read-YesNo {
     return ($resp -match '^(?i:y|yes)$')
 }
 
+function Pause-ForExit {
+    Write-Host "Press E or 0 to exit..." -ForegroundColor Cyan
+    do {
+        $resp = Read-Host
+    } while ($resp -notmatch '^(?i:e|0)$')
+}
+
 function Export-UpdatedIsoIfRequested {
     param(
         [bool]$IsoWasExtracted,
@@ -1463,16 +1470,6 @@ if ($elapsed.TotalMinutes -ge 1) {
 }
 else {
     $elapsedMsg = "Time elapsed: {0:N2} seconds" -f $elapsed.TotalSeconds
-}
-
-# Define Pause-ForExit at top-level so it is always available
-if (-not (Get-Command Pause-ForExit -ErrorAction SilentlyContinue)) {
-    function Pause-ForExit {
-        Write-Host "Press E or 0 to exit..." -ForegroundColor Cyan
-        do {
-            $resp = Read-Host
-        } while ($resp -notmatch '^(?i:e|0)$')
-    }
 }
 
 if ($script:errorsFound) {
