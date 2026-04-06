@@ -904,7 +904,8 @@ function Get-SafeAppxPatterns {
         'Microsoft.BingSearch',
         'Microsoft.Todos',
         'Microsoft.GamingApp',
-        'Microsoft.Copilot'
+        'Microsoft.Copilot',
+	'Microsoft.MicrosoftOfficeHub'
     )
 
     if ($BuildNumber -and $BuildNumber -ge 22000) {
