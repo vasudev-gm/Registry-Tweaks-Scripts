@@ -141,6 +141,31 @@ function Optimize-BootWimImage {
     }
 }
 
+# Function to discard a mounted WIM image with error handling
+function Discard-Image {
+    param([string]$MountPath)
+    try {
+        Dismount-WindowsImage -Path $MountPath -Discard -ErrorAction Stop
+        Write-Host "Discarded mounted image at $MountPath" -ForegroundColor DarkGray
+    }
+    catch {
+        $errMsg = $_.Exception.Message
+        if ($errMsg -match 'Access to the path.*is denied') {
+            Write-Host "Access denied while discarding $MountPath. Retrying with force..." -ForegroundColor Yellow
+            try {
+                Dismount-WindowsImage -Path $MountPath -Discard -Force -ErrorAction Stop
+                Write-Host "Force-discarded mounted image at $MountPath" -ForegroundColor Yellow
+            }
+            catch {
+                Write-Host "Could not force-discard mounted image at ${MountPath}: ${_}" -ForegroundColor Red
+            }
+        }
+        else {
+            Write-Host "Could not discard mounted image at ${MountPath}: ${_}" -ForegroundColor Red
+        }
+    }
+}
+
 # Cleanup Old Mounts and Temp Folders
 function Cleanup-WimMounts {
     $oldWimMounts = Get-ChildItem -Path $env:TEMP -Directory -Filter 'WimMount_*' -ErrorAction SilentlyContinue
@@ -154,9 +179,21 @@ function Cleanup-WimMounts {
             # Try to discard the image if directory removal failed
             try {
                 Discard-Image -MountPath $wm.FullName
+                # Retry folder removal after discarding mounted image
+                if (Test-Path $wm.FullName) {
+                    Remove-Item -Path $wm.FullName -Recurse -Force -ErrorAction Stop
+                    Write-Host "Removed old WimMount folder after discard: $($wm.FullName)" -ForegroundColor DarkGray
+                }
             }
             catch {
                 Write-Host "Could not discard image for $($wm.FullName): ${_}" -ForegroundColor Red
+                if (Test-Path $wm.FullName) {
+                    # Fallback for protected/inaccessible children such as $Recycle.Bin
+                    cmd /c "rd /s /q \"$($wm.FullName)\"" | Out-Null
+                    if (-not (Test-Path $wm.FullName)) {
+                        Write-Host "Removed old WimMount folder using cmd fallback: $($wm.FullName)" -ForegroundColor DarkGray
+                    }
+                }
             }
         }
     }
@@ -187,8 +224,14 @@ function Cleanup-ISOExtracts {
 }
 
 function Cleanup-Mountpoints {
-    Write-Host "Running: dism /Cleanup-Mountpoints" -ForegroundColor Cyan
-    dism /Cleanup-Mountpoints
+    Write-Host "Running: Clear-WindowsCorruptMountPoint" -ForegroundColor Cyan
+    try {
+        Clear-WindowsCorruptMountPoint -ErrorAction Stop
+    }
+    catch {
+        Write-Host "Clear-WindowsCorruptMountPoint failed, falling back to dism.exe /Cleanup-Mountpoints: ${_}" -ForegroundColor Yellow
+        dism /Cleanup-Mountpoints
+    }
 }
 
 
@@ -753,31 +796,6 @@ function Remove-SafeProvisionedAppx {
         $script:errorsFound = $true
     }
 
-}
-
-# Function to discard a mounted WIM image with error handling
-function Discard-Image {
-    param([string]$MountPath)
-    try {
-        Dismount-WindowsImage -Path $MountPath -Discard
-        Write-Host "Discarded mounted image at $MountPath" -ForegroundColor DarkGray
-    }
-    catch {
-        $errMsg = $_.Exception.Message
-        if ($errMsg -match 'Access to the path.*is denied') {
-            Write-Host "Access denied while discarding $MountPath. Retrying with force..." -ForegroundColor Yellow
-            try {
-                Dismount-WindowsImage -Path $MountPath -Discard -Force
-                Write-Host "Force-discarded mounted image at $MountPath" -ForegroundColor Yellow
-            }
-            catch {
-                Write-Host "Could not force-discard mounted image at ${MountPath}: ${_}" -ForegroundColor Red
-            }
-        }
-        else {
-            Write-Host "Could not discard mounted image at ${MountPath}: ${_}" -ForegroundColor Red
-        }
-    }
 }
 
 # Function to optimize and export WIM image to ESD using dism.exe
