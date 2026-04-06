@@ -683,7 +683,7 @@ function Get-SafeAppxPatterns {
         'Microsoft.Todos',
         'Microsoft.GamingApp',
         'Microsoft.Copilot',
-	'Microsoft.MicrosoftOfficeHub'
+	    'Microsoft.MicrosoftOfficeHub'
     )
 
     if ($BuildNumber -and $BuildNumber -ge 22000) {
