@@ -154,6 +154,24 @@ function Get-DefaultIsoFileName {
 
     $dateCode = (Get-Date).ToString('MMMyy')
     $prefix = 'Windows'
+    $archToken = 'amd64'
+
+    function Resolve-ArchToken {
+        param([object]$ArchValue)
+
+        if ($null -eq $ArchValue) { return $null }
+        $archText = ([string]$ArchValue).Trim()
+        if ([string]::IsNullOrWhiteSpace($archText)) { return $null }
+
+        switch -Regex ($archText.ToLower()) {
+            '^(9|x64|amd64)$' { return 'amd64' }
+            '^(0|x86)$' { return 'x86' }
+            '^(12|arm64)$' { return 'arm64' }
+            '^(5|arm)$' { return 'arm' }
+            default { return $null }
+        }
+    }
+
     try {
         if ($SourcePath -and (Test-Path $SourcePath)) {
             $installWim = Join-Path $SourcePath 'sources\install.wim'
@@ -170,12 +188,22 @@ function Get-DefaultIsoFileName {
                     if ($build -ge 22000) { $prefix = 'Win11' }
                     else { $prefix = 'Win10' }
                 }
+
+                $detectedArch = Resolve-ArchToken -ArchValue $img.Architecture
+                if (-not [string]::IsNullOrWhiteSpace($detectedArch)) {
+                    $archToken = $detectedArch
+                }
             }
         }
     }
     catch { }
 
-    return ("{0}_{1}.iso" -f $prefix, $dateCode)
+    if ([string]::IsNullOrWhiteSpace($archToken)) {
+        $fallbackArch = Resolve-ArchToken -ArchValue $env:PROCESSOR_ARCHITECTURE
+        if ($fallbackArch) { $archToken = $fallbackArch }
+    }
+
+    return ("{0}_{1}_{2}.iso" -f $prefix, $archToken, $dateCode)
 }
 
 function Read-YesNo {
@@ -358,8 +386,8 @@ function Show-MinimalGui {
             $clbIdx.Items.Clear() | Out-Null
             [void]$clbIdx.Items.Add('* - All editions')
             $selectedOp = $cbOp.SelectedItem
-            if ($selectedOp -and $selectedOp -like '8*') {
-                # For boot.wim optimization, only show All Editions
+            if ($selectedOp -and ($selectedOp -like '5*' -or $selectedOp -like '8*')) {
+                # For ISO generation/boot.wim optimization, edition indexes are not used.
                 $clbIdx.SetItemChecked(0, $true)
                 return
             }
@@ -368,21 +396,36 @@ function Show-MinimalGui {
 
             $resolvedWim = $null
             $mountedIsoPath = $null
+            $defaultNameSourcePath = $null
             if (Test-Path $pathText) {
                 $it = Get-Item $pathText -ErrorAction SilentlyContinue
                 if ($it -and $it.PSIsContainer) {
                     $candidate = Join-Path $pathText 'sources\install.wim'
-                    if (Test-Path $candidate) { $resolvedWim = $candidate }
+                    if (Test-Path $candidate) {
+                        $resolvedWim = $candidate
+                        $defaultNameSourcePath = $pathText
+                    }
                 }
                 else {
-                    if ($pathText -match "\.wim$") { $resolvedWim = $pathText }
+                    if ($pathText -match "\.wim$") {
+                        $resolvedWim = $pathText
+                        if ($pathText -match "sources\\install\.(wim|esd)$") {
+                            $defaultNameSourcePath = Split-Path -Path (Split-Path -Path $pathText -Parent) -Parent
+                        }
+                        else {
+                            $defaultNameSourcePath = Split-Path -Path $pathText -Parent
+                        }
+                    }
                     elseif ($pathText -match "\.iso$") {
                         try {
                             $mnt = Mount-DiskImage -ImagePath $pathText -PassThru -ErrorAction Stop
                             $dl = ($mnt | Get-Volume -ErrorAction Stop).DriveLetter
                             if ($dl) {
                                 $mountedIsoPath = "$dl`:\\sources\\install.wim"
-                                if (Test-Path $mountedIsoPath) { $resolvedWim = $mountedIsoPath }
+                                if (Test-Path $mountedIsoPath) {
+                                    $resolvedWim = $mountedIsoPath
+                                    $defaultNameSourcePath = "$dl`:\"
+                                }
                             }
                         }
                         catch { }
@@ -402,10 +445,39 @@ function Show-MinimalGui {
                 }
                 catch { }
             }
+
+            if ($defaultNameSourcePath -and $tbOutIso) {
+                $suggestedName = Get-DefaultIsoFileName -SourcePath $defaultNameSourcePath
+                $currentName = [string]$tbOutIso.Text
+                if ([string]::IsNullOrWhiteSpace($currentName) -or ($currentName -eq $script:LastSuggestedIsoName)) {
+                    $tbOutIso.Text = $suggestedName
+                }
+                $script:LastSuggestedIsoName = $suggestedName
+            }
+
             if ($clbIdx.Items.Count -gt 0) { $clbIdx.SetItemChecked(0, $true) }
         }
         finally {
             $clbIdx.EndUpdate()
+        }
+    }
+
+    $setEditionSelectorState = {
+        $selectedOp = $cbOp.SelectedItem
+        $opId = $null
+        if ($selectedOp) { $opId = ($selectedOp.ToString().Split(' ')[0]) }
+        $requiresIndexes = $opId -in @('1', '2', '3', '4', '6', '7')
+
+        $lblIdx.Enabled = $requiresIndexes
+        $clbIdx.Enabled = $requiresIndexes
+        if ($requiresIndexes) {
+            $lblIdx.Text = 'Edition index(es):'
+        }
+        else {
+            $lblIdx.Text = 'Edition index(es): (not used for this operation)'
+            for ($i = 0; $i -lt $clbIdx.Items.Count; $i++) {
+                $clbIdx.SetItemChecked($i, ($i -eq 0))
+            }
         }
     }
 
@@ -430,6 +502,7 @@ function Show-MinimalGui {
     $tbOutIso.Location = New-Object System.Drawing.Point(200, 165)
     $tbOutIso.Size = New-Object System.Drawing.Size(240, 22)
     $tbOutIso.Text = Get-DefaultIsoFileName -SourcePath $null
+    $script:LastSuggestedIsoName = $tbOutIso.Text
 
     $btnSaveAs = New-Object System.Windows.Forms.Button
     $btnSaveAs.Text = 'Save As...'
@@ -487,6 +560,7 @@ function Show-MinimalGui {
             $isIsoGenLocal = ($cbOp.SelectedItem -like '5*')
             & $setIsoFieldsVisibility $isIsoGenLocal
             & $populateEditions
+            & $setEditionSelectorState
         })
 
     # Elevation option
@@ -507,15 +581,21 @@ function Show-MinimalGui {
                 if ($sel) {
                     $script:ChoiceFromGui = ($sel.Split(' ')[0])
                 }
-                $checkedItems = @()
-                for ($i = 0; $i -lt $clbIdx.Items.Count; $i++) { if ($clbIdx.GetItemChecked($i)) { $checkedItems += $clbIdx.Items[$i] } }
-                if (($checkedItems | ForEach-Object { $_.ToString() }) -contains '* - All editions') {
+                $opNeedsIndexes = $script:ChoiceFromGui -in @('1', '2', '3', '4', '6', '7')
+                if (-not $opNeedsIndexes) {
                     $script:IndexInputFromGui = '*'
                 }
                 else {
-                    $indices = @()
-                    foreach ($it in $checkedItems) { $s = $it.ToString(); if ($s -match '^\s*(\d+)') { $indices += $matches[1] } }
-                    if ($indices.Count -gt 0) { $script:IndexInputFromGui = ($indices -join ',') } else { $script:IndexInputFromGui = '*' }
+                    $checkedItems = @()
+                    for ($i = 0; $i -lt $clbIdx.Items.Count; $i++) { if ($clbIdx.GetItemChecked($i)) { $checkedItems += $clbIdx.Items[$i] } }
+                    if (($checkedItems | ForEach-Object { $_.ToString() }) -contains '* - All editions') {
+                        $script:IndexInputFromGui = '*'
+                    }
+                    else {
+                        $indices = @()
+                        foreach ($it in $checkedItems) { $s = $it.ToString(); if ($s -match '^\s*(\d+)') { $indices += $matches[1] } }
+                        if ($indices.Count -gt 0) { $script:IndexInputFromGui = ($indices -join ',') } else { $script:IndexInputFromGui = '*' }
+                    }
                 }
                 if (-not [string]::IsNullOrWhiteSpace($tbIsoLabel.Text)) {
                     $script:IsoLabelFromGui = $tbIsoLabel.Text.Trim()
@@ -545,6 +625,7 @@ function Show-MinimalGui {
     & $setIsoFieldsVisibility ($cbOp.SelectedItem -like '5*')
     # Populate editions now if a path was provided via CLI
     & $populateEditions
+    & $setEditionSelectorState
     [void]$form.ShowDialog()
 }
 
@@ -1211,36 +1292,12 @@ if ($script:SkipServicingForIsoExport) {
     Cleanup-Mountpoints
     if (-not $isoOk) {
         Write-Error "ISO export failed."
+        Pause-ForExit
         exit 1
     }
     Write-Host "ISO export completed." -ForegroundColor Green
+    Pause-ForExit
     exit 0
-}
-
-# Ensure $WimPath exists before continuing
-if (!(Test-Path $WimPath)) {
-    Write-Error "WIM file not found: $WimPath"
-    exit 1
-}
-
-$editions = Get-WimEditions -WimPath $WimPath
-Write-Host "Available Editions in ${WimPath}:" -ForegroundColor Cyan
-foreach ($e in $editions) {
-    Write-Host "$($e.Index): $($e.Edition)"
-}
-Write-Host "*: All editions" -ForegroundColor Yellow
-
-
-
-if (-not $indexInput) {
-    $indexInput = [string](Read-Host "Enter the index number(s) of the edition(s) to modify (e.g. 1,3,5 or * for all editions)")
-}
-
-$indexInput = [string]$indexInput
-$indexInput = $indexInput.Trim()
-if ([string]::IsNullOrWhiteSpace($indexInput)) {
-    Write-Host "No edition index input provided. Exiting." -ForegroundColor Red
-    exit 1
 }
 
 if (-not $choice -and -not $Gui) {
@@ -1264,21 +1321,49 @@ if ($choice -notin @('0', '1', '2', '3', '4', '5', '6', '7', '8')) {
     exit 1
 }
 
+# Ensure $WimPath exists before continuing
+if (!(Test-Path $WimPath)) {
+    Write-Error "WIM file not found: $WimPath"
+    exit 1
+}
+
 # Parse selected indexes once for all operations
 $selectedIndexes = @()
-if ($indexInput -eq '*') {
-    $selectedIndexes = $editions | ForEach-Object { $_.Index }
-}
-else {
-    $inputIndexes = $indexInput -split ',' | ForEach-Object { $_.Trim() }
-    $validIndexes = $editions | ForEach-Object { $_.Index }
-    $selectedIndexes = $inputIndexes | Where-Object { $validIndexes -contains $_ }
-    if ($selectedIndexes.Count -eq 0) {
-        Write-Host "No valid edition indexes selected. Exiting." -ForegroundColor Red
+$requiresEditionIndexes = $choice -in @('1', '2', '3', '4', '6', '7')
+if ($requiresEditionIndexes) {
+    $editions = Get-WimEditions -WimPath $WimPath
+    Write-Host "Available Editions in ${WimPath}:" -ForegroundColor Cyan
+    foreach ($e in $editions) {
+        Write-Host "$($e.Index): $($e.Edition)"
+    }
+    Write-Host "*: All editions" -ForegroundColor Yellow
+
+    if (-not $indexInput) {
+        $indexInput = [string](Read-Host "Enter the index number(s) of the edition(s) to modify (e.g. 1,3,5 or * for all editions)")
+    }
+
+    $indexInput = [string]$indexInput
+    $indexInput = $indexInput.Trim()
+    if ([string]::IsNullOrWhiteSpace($indexInput)) {
+        Write-Host "No edition index input provided. Exiting." -ForegroundColor Red
         exit 1
     }
+
+    if ($indexInput -eq '*') {
+        $selectedIndexes = $editions | ForEach-Object { $_.Index }
+    }
+    else {
+        $inputIndexes = $indexInput -split ',' | ForEach-Object { $_.Trim() }
+        $validIndexes = $editions | ForEach-Object { $_.Index }
+        $selectedIndexes = $inputIndexes | Where-Object { $validIndexes -contains $_ }
+        if ($selectedIndexes.Count -eq 0) {
+            Write-Host "No valid edition indexes selected. Exiting." -ForegroundColor Red
+            exit 1
+        }
+    }
+
+    $selectedIndexes = $selectedIndexes | ForEach-Object { [int]$_ }
 }
-$selectedIndexes = $selectedIndexes | ForEach-Object { [int]$_ }
 if ($choice -eq '4') {
     Optimize-WimImage -WimPath $WimPath -Indexes $selectedIndexes
     Export-UpdatedIsoIfRequested -IsoWasExtracted $isoExtracted -TempExtractPath $tempExtractPath -IsoLabel $GlobalIsoLabel -PreferredOutputIso $outputIso
@@ -1416,6 +1501,7 @@ if ($choice -eq '5') {
     $elapsed = $scriptEndTime - $scriptStartTime
     if ($elapsed.TotalMinutes -ge 1) { $elapsedMsg = "Time elapsed: {0:N2} minutes" -f $elapsed.TotalMinutes } else { $elapsedMsg = "Time elapsed: {0:N2} seconds" -f $elapsed.TotalSeconds }
     Write-Host $elapsedMsg -ForegroundColor Cyan
+    Pause-ForExit
     exit 0
 }
 

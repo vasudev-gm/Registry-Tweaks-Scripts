@@ -261,6 +261,24 @@ function Get-DefaultIsoFileName {
 
     $dateCode = (Get-Date).ToString('MMMyy')
     $prefix = 'Windows'
+    $archToken = 'amd64'
+
+    function Resolve-ArchToken {
+        param([object]$ArchValue)
+
+        if ($null -eq $ArchValue) { return $null }
+        $archText = ([string]$ArchValue).Trim()
+        if ([string]::IsNullOrWhiteSpace($archText)) { return $null }
+
+        switch -Regex ($archText.ToLower()) {
+            '^(9|x64|amd64)$' { return 'amd64' }
+            '^(0|x86)$' { return 'x86' }
+            '^(12|arm64)$' { return 'arm64' }
+            '^(5|arm)$' { return 'arm' }
+            default { return $null }
+        }
+    }
+
     try {
         if ($SourcePath -and (Test-Path $SourcePath)) {
             $installWim = Join-Path $SourcePath 'sources\install.wim'
@@ -277,12 +295,22 @@ function Get-DefaultIsoFileName {
                     if ($build -ge 22000) { $prefix = 'Win11' }
                     else { $prefix = 'Win10' }
                 }
+
+                $detectedArch = Resolve-ArchToken -ArchValue $img.Architecture
+                if (-not [string]::IsNullOrWhiteSpace($detectedArch)) {
+                    $archToken = $detectedArch
+                }
             }
         }
     }
     catch { }
 
-    return ("{0}_{1}.iso" -f $prefix, $dateCode)
+    if ([string]::IsNullOrWhiteSpace($archToken)) {
+        $fallbackArch = Resolve-ArchToken -ArchValue $env:PROCESSOR_ARCHITECTURE
+        if ($fallbackArch) { $archToken = $fallbackArch }
+    }
+
+    return ("{0}_{1}_{2}.iso" -f $prefix, $archToken, $dateCode)
 }
 
 function Export-UpdatedIsoIfRequested {
