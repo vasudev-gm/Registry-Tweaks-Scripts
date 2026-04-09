@@ -3,6 +3,14 @@ setlocal enabledelayedexpansion
 
 echo Checking for installed applications...
 
+REM Detect system architecture for ARM64 installer preference
+set "IsArm64=false"
+if /i "%PROCESSOR_ARCHITECTURE%"=="ARM64" set "IsArm64=true"
+if /i "%PROCESSOR_ARCHITEW6432%"=="ARM64" set "IsArm64=true"
+if "%IsArm64%"=="true" (
+    echo ARM64 system detected. ARM installers will be preferred when available.
+)
+
 REM Check if Brave is installed
 set "BraveInstalled=false"
 if exist "%ProgramFiles%\BraveSoftware\Brave-Browser\Application\brave.exe" (
@@ -54,13 +62,28 @@ if "%BraveInstalled%"=="false" (
     echo Installing Brave Browser...
     
     if "%ISOFound%"=="true" (
-        if exist "%WinAppsDir%\brave_silent.exe" (
-            echo Installing Brave from ISO...
-            start /wait "" "%WinAppsDir%\brave_silent.exe"
-            echo Brave installation from ISO completed.
+        if "%IsArm64%"=="true" (
+            if exist "%WinAppsDir%\brave_silent_arm.exe" (
+                echo Installing Brave ARM version from ISO...
+                start /wait "" "%WinAppsDir%\brave_silent_arm.exe"
+                echo Brave ARM installation from ISO completed.
+            ) else if exist "%WinAppsDir%\brave_silent.exe" (
+                echo ARM Brave installer not found, installing Brave from ISO fallback...
+                start /wait "" "%WinAppsDir%\brave_silent.exe"
+                echo Brave installation from ISO fallback completed.
+            ) else (
+                echo Brave installer not found on ISO, installing from online source...
+                winget install Brave.Brave --accept-package-agreements --accept-source-agreements
+            )
         ) else (
-            echo Brave installer not found on ISO, installing from online source...
-            winget install Brave.Brave --accept-package-agreements --accept-source-agreements
+            if exist "%WinAppsDir%\brave_silent.exe" (
+                echo Installing Brave from ISO...
+                start /wait "" "%WinAppsDir%\brave_silent.exe"
+                echo Brave installation from ISO completed.
+            ) else (
+                echo Brave installer not found on ISO, installing from online source...
+                winget install Brave.Brave --accept-package-agreements --accept-source-agreements
+            )
         )
     ) else (
         echo Installing Brave from online source...
@@ -75,13 +98,28 @@ if "%IrfanViewInstalled%"=="false" (
     echo Installing IrfanView...
     
     if "%ISOFound%"=="true" (
-        if exist "%WinAppsDir%\iview_setup.exe" (
-            echo Installing IrfanView from ISO...
-            start /wait "" "%WinAppsDir%\iview_setup.exe" /silent
-            echo IrfanView installation from ISO completed.
+        if "%IsArm64%"=="true" (
+            if exist "%WinAppsDir%\iview_setup_arm64.exe" (
+                echo Installing IrfanView ARM64 version from ISO...
+                start /wait "" "%WinAppsDir%\iview_setup_arm64.exe" /silent
+                echo IrfanView ARM64 installation from ISO completed.
+            ) else if exist "%WinAppsDir%\iview_setup.exe" (
+                echo ARM64 IrfanView installer not found, installing IrfanView from ISO fallback...
+                start /wait "" "%WinAppsDir%\iview_setup.exe" /silent
+                echo IrfanView installation from ISO fallback completed.
+            ) else (
+                echo IrfanView installer not found on ISO, installing from online source...
+                winget install IrfanSkiljan.IrfanView --accept-package-agreements --accept-source-agreements
+            )
         ) else (
-            echo IrfanView installer not found on ISO, installing from online source...
-            winget install IrfanSkiljan.IrfanView --accept-package-agreements --accept-source-agreements
+            if exist "%WinAppsDir%\iview_setup.exe" (
+                echo Installing IrfanView from ISO...
+                start /wait "" "%WinAppsDir%\iview_setup.exe" /silent
+                echo IrfanView installation from ISO completed.
+            ) else (
+                echo IrfanView installer not found on ISO, installing from online source...
+                winget install IrfanSkiljan.IrfanView --accept-package-agreements --accept-source-agreements
+            )
         )
     ) else (
         echo Installing IrfanView from online source...
