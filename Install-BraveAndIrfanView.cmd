@@ -60,7 +60,7 @@ del "%TEMP%\find_iso.ps1" > nul 2>&1
 REM Install Brave if not already installed
 if "%BraveInstalled%"=="false" (
     echo Installing Brave Browser...
-    
+
     if "%ISOFound%"=="true" (
         if "%IsArm64%"=="true" (
             if exist "%WinAppsDir%\brave_silent_arm.exe" (
@@ -96,16 +96,16 @@ if "%BraveInstalled%"=="false" (
 REM Install IrfanView if not already installed
 if "%IrfanViewInstalled%"=="false" (
     echo Installing IrfanView...
-    
+
     if "%ISOFound%"=="true" (
         if "%IsArm64%"=="true" (
             if exist "%WinAppsDir%\iview_setup_arm64.exe" (
                 echo Installing IrfanView ARM64 version from ISO...
-                start /wait "" "%WinAppsDir%\iview_setup_arm64.exe" /silent
+                start /wait "" "%WinAppsDir%\iview_setup_arm64.exe" /silent /assoc=1
                 echo IrfanView ARM64 installation from ISO completed.
             ) else if exist "%WinAppsDir%\iview_setup.exe" (
                 echo ARM64 IrfanView installer not found, installing IrfanView from ISO fallback...
-                start /wait "" "%WinAppsDir%\iview_setup.exe" /silent
+                start /wait "" "%WinAppsDir%\iview_setup.exe" /silent /assoc=1
                 echo IrfanView installation from ISO fallback completed.
             ) else (
                 echo IrfanView installer not found on ISO, installing from online source...
@@ -114,7 +114,7 @@ if "%IrfanViewInstalled%"=="false" (
         ) else (
             if exist "%WinAppsDir%\iview_setup.exe" (
                 echo Installing IrfanView from ISO...
-                start /wait "" "%WinAppsDir%\iview_setup.exe" /silent
+                start /wait "" "%WinAppsDir%\iview_setup.exe" /silent /assoc=1
                 echo IrfanView installation from ISO completed.
             ) else (
                 echo IrfanView installer not found on ISO, installing from online source...
