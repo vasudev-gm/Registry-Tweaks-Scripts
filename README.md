@@ -38,7 +38,11 @@ UWP Bloatware list from [Edugeek Forum][def14]
 
 Svchost Split Threshold tweak for Windows 10 and 11 [Service_Split][def15]
 
-Thanks to abbodi1406, htfx, exurd, emil, Shawn Brink, ShadowWhisperer and ThioJoe for scripts and repacks
+Added my custom Edge Removal Scripts that I use in my custom ISOs. It is a simple batch file that uses DISM to remove the Edge package and its dependencies. It also removes the Edge shortcuts from the Start menu and taskbar. In addition, it can optimize wim file, boot.wim, remove unnecessary UWP apps on both Windows 10 & 11 to make the ISO smaller and faster to install with small footprint. The scripts can be found Remove-Edge-ISO-GUI.ps1 and Remove-Edge-ISO.ps1 in the root directory.
+
+To be more effective, use the unattended xml file for best experience. It supports arm64 and amd64 architectures. The files are separated due to conX setup aka New Installer UX in Windows 11 24H2 and later version which doesn't play well x86/x86A_64 combined architectures in a single file. I have also added some tweaks to the unattended xml file to optimize the installation process and remove some unnecessary features. [Unattended XML File Generator][def16]
+
+Thanks to abbodi1406, htfx, exurd, emil, Shawn Brink, ShadowWhisperer, Schneegans and ThioJoe for scripts and repacks
 
 Converted some of the registry tweaks into .reg files for easier use and added some new ones using GH Copilot GPT-5.3 Codex. I will be adding more in the future.
 
@@ -57,3 +61,4 @@ Converted some of the registry tweaks into .reg files for easier use and added s
 [def13]: https://gist.github.com/emilwojcik93/ef790a6b12c8e9358bbc52ed76fb495c
 [def14]: https://www.edugeek.net/forums/topic/219203-remove-appx-packages/
 [def15]: https://github.com/ShadowWhisperer/Service-Split/blob/main/Service_Split.bat
+[def16]: https://schneegans.de/windows/unattend-generator/

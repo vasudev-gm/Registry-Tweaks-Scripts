@@ -154,6 +154,7 @@ function Get-DefaultIsoFileName {
 
     $dateCode = (Get-Date).ToString('MMMyy')
     $prefix = 'Windows'
+    $releaseToken = ''
     $archToken = 'amd64'
 
     function Resolve-ArchToken {
@@ -172,38 +173,153 @@ function Get-DefaultIsoFileName {
         }
     }
 
+    function Resolve-ReleaseToken {
+        param([int]$BuildNumber)
+
+        # Known build-to-release mapping used for ISO naming.
+        if ($BuildNumber -ge 26200) { return '25H2' }
+        if ($BuildNumber -ge 26100) { return '24H2' }
+        if ($BuildNumber -ge 22631) { return '23H2' }
+        if ($BuildNumber -ge 22621) { return '22H2' }
+        if ($BuildNumber -ge 22000) { return '21H2' }
+        if ($BuildNumber -ge 19045) { return '22H2' }
+        if ($BuildNumber -ge 19044) { return '21H2' }
+        return ''
+    }
+
+    function Resolve-ImagePath {
+        param([string]$PathHint)
+
+        if (-not [string]::IsNullOrWhiteSpace($PathHint) -and (Test-Path $PathHint)) {
+            $item = Get-Item -LiteralPath $PathHint -ErrorAction SilentlyContinue
+            if ($item -and $item.PSIsContainer) {
+                $installWim = Join-Path $PathHint 'sources\install.wim'
+                $installEsd = Join-Path $PathHint 'sources\install.esd'
+                if (Test-Path $installWim) { return $installWim }
+                if (Test-Path $installEsd) { return $installEsd }
+            }
+            else {
+                if ($PathHint -match '\.(wim|esd)$') { return $PathHint }
+            }
+        }
+
+        if ($script:WimPath -and (Test-Path $script:WimPath)) {
+            if ($script:WimPath -match '\.(wim|esd)$') { return $script:WimPath }
+        }
+
+        if ($WimPath -and (Test-Path $WimPath)) {
+            if ($WimPath -match '\.(wim|esd)$') { return $WimPath }
+        }
+
+        return $null
+    }
+
+    function Resolve-TokensFromPathHint {
+        param([string]$PathHint)
+
+        if ([string]::IsNullOrWhiteSpace($PathHint)) { return $null }
+        $text = [string]$PathHint
+
+        $prefixHint = $null
+        if ($text -match '(?i)win\s*11|windows\s*11') { $prefixHint = 'Win11' }
+        elseif ($text -match '(?i)win\s*10|windows\s*10') { $prefixHint = 'Win10' }
+
+        $releaseHint = $null
+        if ($text -match '(?i)(2[0-9]H[12])') { $releaseHint = $matches[1].ToUpper() }
+
+        $archHint = $null
+        if ($text -match '(?i)arm64') { $archHint = 'arm64' }
+        elseif ($text -match '(?i)amd64|x64') { $archHint = 'amd64' }
+        elseif ($text -match '(?i)\bx86\b') { $archHint = 'x86' }
+
+        return [PSCustomObject]@{
+            Prefix       = $prefixHint
+            ReleaseToken = $releaseHint
+            ArchToken    = $archHint
+        }
+    }
+
+    $mountedIsoPath = $null
+    $mountedImagePath = $null
     try {
-        if ($SourcePath -and (Test-Path $SourcePath)) {
-            $installWim = Join-Path $SourcePath 'sources\install.wim'
-            $installEsd = Join-Path $SourcePath 'sources\install.esd'
-            $imagePath = $null
-            if (Test-Path $installWim) { $imagePath = $installWim }
-            elseif (Test-Path $installEsd) { $imagePath = $installEsd }
-
-            if ($imagePath) {
-                $img = Get-WindowsImage -ImagePath $imagePath -Index 1 -ErrorAction Stop
-                $verText = [string]$img.Version
-                if (-not [string]::IsNullOrWhiteSpace($verText)) {
-                    $build = ([version]$verText).Build
-                    if ($build -ge 22000) { $prefix = 'Win11' }
-                    else { $prefix = 'Win10' }
+        $imagePath = $null
+        if ($SourcePath -and (Test-Path $SourcePath) -and ($SourcePath -match '\.iso$')) {
+            try {
+                $mountedIsoPath = Mount-DiskImage -ImagePath $SourcePath -PassThru -ErrorAction Stop
+                $driveLetter = ($mountedIsoPath | Get-Volume -ErrorAction Stop).DriveLetter
+                if ($driveLetter) {
+                    $candidateWim = "${driveLetter}:\\sources\\install.wim"
+                    $candidateEsd = "${driveLetter}:\\sources\\install.esd"
+                    if (Test-Path $candidateWim) { $imagePath = $candidateWim }
+                    elseif (Test-Path $candidateEsd) { $imagePath = $candidateEsd }
+                    $mountedImagePath = $imagePath
                 }
+            }
+            catch { }
+        }
 
-                $detectedArch = Resolve-ArchToken -ArchValue $img.Architecture
-                if (-not [string]::IsNullOrWhiteSpace($detectedArch)) {
-                    $archToken = $detectedArch
-                }
+        if (-not $imagePath) {
+            $imagePath = Resolve-ImagePath -PathHint $SourcePath
+        }
+
+        if ($imagePath) {
+            $img = Get-WindowsImage -ImagePath $imagePath -Index 1 -ErrorAction Stop
+            $verText = [string]$img.Version
+            if (-not [string]::IsNullOrWhiteSpace($verText)) {
+                $build = ([version]$verText).Build
+                if ($build -ge 22000) { $prefix = 'Win11' }
+                else { $prefix = 'Win10' }
+                $releaseToken = Resolve-ReleaseToken -BuildNumber $build
+            }
+
+            $detectedArch = Resolve-ArchToken -ArchValue $img.Architecture
+            if (-not [string]::IsNullOrWhiteSpace($detectedArch)) {
+                $archToken = $detectedArch
             }
         }
     }
     catch { }
+    finally {
+        if ($mountedIsoPath -and $mountedImagePath) {
+            Dismount-DiskImage -ImagePath $SourcePath -ErrorAction SilentlyContinue | Out-Null
+        }
+    }
+
+    if (($prefix -eq 'Windows' -or [string]::IsNullOrWhiteSpace($releaseToken)) -and -not [string]::IsNullOrWhiteSpace($SourcePath)) {
+        $hintTokens = Resolve-TokensFromPathHint -PathHint $SourcePath
+        if ($hintTokens) {
+            if ($hintTokens.Prefix) { $prefix = $hintTokens.Prefix }
+            if ([string]::IsNullOrWhiteSpace($releaseToken) -and $hintTokens.ReleaseToken) { $releaseToken = $hintTokens.ReleaseToken }
+            if ($hintTokens.ArchToken) { $archToken = $hintTokens.ArchToken }
+        }
+    }
 
     if ([string]::IsNullOrWhiteSpace($archToken)) {
         $fallbackArch = Resolve-ArchToken -ArchValue $env:PROCESSOR_ARCHITECTURE
         if ($fallbackArch) { $archToken = $fallbackArch }
     }
 
-    return ("{0}_{1}_{2}.iso" -f $prefix, $archToken, $dateCode)
+    if ([string]::IsNullOrWhiteSpace($releaseToken)) {
+        $releaseArchToken = $archToken
+    }
+    else {
+        $releaseArchToken = "{0}_{1}" -f $releaseToken, $archToken
+    }
+    return ("{0}_{1}_{2}.iso" -f $prefix, $releaseArchToken, $dateCode)
+}
+
+function Get-DefaultIsoLabel {
+    param(
+        [string]$SourcePath,
+        [string]$Fallback = 'Custom_Win11'
+    )
+
+    $defaultName = Get-DefaultIsoFileName -SourcePath $SourcePath
+    if ($defaultName -match '^(Win10|Win11)_') {
+        return ("Custom_{0}" -f $matches[1])
+    }
+
+    return $Fallback
 }
 
 function Read-YesNo {
@@ -400,14 +516,19 @@ function Show-MinimalGui {
             if (Test-Path $pathText) {
                 $it = Get-Item $pathText -ErrorAction SilentlyContinue
                 if ($it -and $it.PSIsContainer) {
-                    $candidate = Join-Path $pathText 'sources\install.wim'
-                    if (Test-Path $candidate) {
-                        $resolvedWim = $candidate
+                    $candidateWim = Join-Path $pathText 'sources\install.wim'
+                    $candidateEsd = Join-Path $pathText 'sources\install.esd'
+                    if (Test-Path $candidateWim) {
+                        $resolvedWim = $candidateWim
+                        $defaultNameSourcePath = $pathText
+                    }
+                    elseif (Test-Path $candidateEsd) {
+                        $resolvedWim = $candidateEsd
                         $defaultNameSourcePath = $pathText
                     }
                 }
                 else {
-                    if ($pathText -match "\.wim$") {
+                    if ($pathText -match "\.(wim|esd)$") {
                         $resolvedWim = $pathText
                         if ($pathText -match "sources\\install\.(wim|esd)$") {
                             $defaultNameSourcePath = Split-Path -Path (Split-Path -Path $pathText -Parent) -Parent
@@ -421,9 +542,14 @@ function Show-MinimalGui {
                             $mnt = Mount-DiskImage -ImagePath $pathText -PassThru -ErrorAction Stop
                             $dl = ($mnt | Get-Volume -ErrorAction Stop).DriveLetter
                             if ($dl) {
-                                $mountedIsoPath = "$dl`:\\sources\\install.wim"
-                                if (Test-Path $mountedIsoPath) {
-                                    $resolvedWim = $mountedIsoPath
+                                $mountedIsoWim = "$dl`:\\sources\\install.wim"
+                                $mountedIsoEsd = "$dl`:\\sources\\install.esd"
+                                if (Test-Path $mountedIsoWim) {
+                                    $resolvedWim = $mountedIsoWim
+                                    $defaultNameSourcePath = "$dl`:\"
+                                }
+                                elseif (Test-Path $mountedIsoEsd) {
+                                    $resolvedWim = $mountedIsoEsd
                                     $defaultNameSourcePath = "$dl`:\"
                                 }
                             }
@@ -453,6 +579,15 @@ function Show-MinimalGui {
                     $tbOutIso.Text = $suggestedName
                 }
                 $script:LastSuggestedIsoName = $suggestedName
+            }
+
+            if ($defaultNameSourcePath -and $tbIsoLabel) {
+                $suggestedLabel = Get-DefaultIsoLabel -SourcePath $defaultNameSourcePath -Fallback $GlobalIsoLabel
+                $currentLabel = [string]$tbIsoLabel.Text
+                if ([string]::IsNullOrWhiteSpace($currentLabel) -or ($currentLabel -eq $script:LastSuggestedIsoLabel)) {
+                    $tbIsoLabel.Text = $suggestedLabel
+                }
+                $script:LastSuggestedIsoLabel = $suggestedLabel
             }
 
             if ($clbIdx.Items.Count -gt 0) { $clbIdx.SetItemChecked(0, $true) }
@@ -491,6 +626,7 @@ function Show-MinimalGui {
     $tbIsoLabel.Location = New-Object System.Drawing.Point(160, 135)
     $tbIsoLabel.Size = New-Object System.Drawing.Size(280, 22)
     $tbIsoLabel.Text = $GlobalIsoLabel
+    $script:LastSuggestedIsoLabel = $tbIsoLabel.Text
 
     # Output ISO name/path (optional)
     $lblOutIso = New-Object System.Windows.Forms.Label
@@ -839,6 +975,10 @@ if (Test-Path $cleanPath) {
 else {
     Write-Error "Path '$cleanPath' does not exist."
     exit 1
+}
+
+if (-not $script:IsoLabelFromGui) {
+    $GlobalIsoLabel = Get-DefaultIsoLabel -SourcePath $WimPath -Fallback $GlobalIsoLabel
 }
 
 # Check for DISM powershell module
