@@ -318,6 +318,18 @@ function Get-DefaultIsoFileName {
             if ($WimPath -match '\.(wim|esd)$') { return $WimPath }
         }
 
+        # Handle common case where PathHint points to install.wim but only install.esd exists (or vice versa).
+        if (-not [string]::IsNullOrWhiteSpace($PathHint) -and ($PathHint -match '\.(wim|esd)$')) {
+            if ($PathHint -match '(?i)\.wim$') {
+                $altImage = [regex]::Replace($PathHint, '(?i)\.wim$', '.esd')
+                if (Test-Path $altImage) { return $altImage }
+            }
+            elseif ($PathHint -match '(?i)\.esd$') {
+                $altImage = [regex]::Replace($PathHint, '(?i)\.esd$', '.wim')
+                if (Test-Path $altImage) { return $altImage }
+            }
+        }
+
         return $null
     }
 
@@ -364,6 +376,13 @@ function Get-DefaultIsoLabel {
     $defaultName = Get-DefaultIsoFileName -SourcePath $SourcePath
     if ($defaultName -match '^(Win10|Win11)_') {
         return ("Custom_{0}" -f $matches[1])
+    }
+
+    # Fallback to path token parsing when image metadata could not be read.
+    if (-not [string]::IsNullOrWhiteSpace($SourcePath)) {
+        $pathText = [string]$SourcePath
+        if ($pathText -match '(?i)win\s*10|windows\s*10') { return 'Custom_Win10' }
+        if ($pathText -match '(?i)win\s*11|windows\s*11') { return 'Custom_Win11' }
     }
 
     return $Fallback
@@ -626,7 +645,7 @@ else {
     exit 1
 }
 
-$GlobalIsoLabel = Get-DefaultIsoLabel -SourcePath $WimPath -Fallback $GlobalIsoLabel
+$GlobalIsoLabel = Get-DefaultIsoLabel -SourcePath $cleanPath -Fallback $GlobalIsoLabel
 
 # Check for DISM powershell module
 if (-not (Get-Module -ListAvailable -Name DISM)) {
@@ -657,6 +676,8 @@ if ((-not (Test-Path $WimPath)) -and (Test-Path $esdCandidate)) {
                 Write-Error "Could not resolve ISO source root from $installDir."
                 exit 1
             }
+
+            $GlobalIsoLabel = Get-DefaultIsoLabel -SourcePath $sourceRoot -Fallback $GlobalIsoLabel
 
             $defaultName = Get-DefaultIsoFileName -SourcePath $sourceRoot
             $outputIso = Join-Path (Get-Location) $defaultName
@@ -1104,6 +1125,7 @@ if ($choice -eq '5') {
     }
 
     $defaultName = Get-DefaultIsoFileName -SourcePath $isoSourcePath
+    $GlobalIsoLabel = Get-DefaultIsoLabel -SourcePath $isoSourcePath -Fallback $GlobalIsoLabel
     $outputIso = Join-Path (Get-Location) $defaultName
 
     if ($isoSourcePath) {
