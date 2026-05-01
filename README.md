@@ -1,6 +1,17 @@
 # Registry-Tweaks-Scripts
 
-Contains registry tweaks and simple batch scripts
+Custom registry tweaks and scripts for building lightweight Windows 10/11 ISOs.
+
+## Edge Removal Scripts (Primary)
+
+This repository\'s main feature is my custom Microsoft Edge removal scripts for Windows 10 and Windows 11 images, including 23H2/24H2/25H2 setups including arm64.
+
+- [Remove-Edge-ISO.ps1](Remove-Edge-ISO.ps1)
+- [Remove-Edge-ISO-GUI.ps1](Remove-Edge-ISO-GUI.ps1)
+
+These scripts use DISM to remove Edge and related dependencies, clean Start menu/taskbar shortcuts, remove selected UWP apps, and optimize image files (`install.wim` and `boot.wim`) for a smaller ISO footprint.
+
+If you are searching for a Windows 10/11 Edge removal script for custom ISO builds, start with the scripts above.
 
 I will basically divide it into 2 directories/sections called cmds and reg_tweaks which I commonly use when creating custom up-to-date windows 10 or 11 ISO using WinToolkit,NTLite and W10UI. I will include direct links for DirectX9, NetFX35 and VC++ runtimes repacks etc.
 
@@ -37,8 +48,6 @@ Added scripts to download Brave, DX/VC++ Redist and IrfanView to get latest vers
 UWP Bloatware list from [Edugeek Forum][def14]
 
 Svchost Split Threshold tweak for Windows 10 and 11 [Service_Split][def15]
-
-Added my custom Edge Removal Scripts that I use in my custom ISOs. It is a simple batch file that uses DISM to remove the Edge package and its dependencies. It also removes the Edge shortcuts from the Start menu and taskbar. In addition, it can optimize wim file, boot.wim, remove unnecessary UWP apps on both Windows 10 & 11 to make the ISO smaller and faster to install with small footprint. The scripts can be found Remove-Edge-ISO-GUI.ps1 and Remove-Edge-ISO.ps1 in the root directory.
 
 To be more effective, use the unattended xml file for best experience. It supports arm64 and amd64 architectures. The files are separated due to conX setup aka New Installer UX in Windows 11 24H2 and later version which doesn't play well x86/x86A_64 combined architectures in a single file. I have also added some tweaks to the unattended xml file to optimize the installation process and remove some unnecessary features. [Unattended XML File Generator][def16]
 
