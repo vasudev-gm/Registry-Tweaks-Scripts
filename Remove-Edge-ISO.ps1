@@ -1,4 +1,4 @@
-# Edge Removal Script for Windows 11 ISO (PowerShell 7+)
+# Edge Removal Script for Windows 11 ISO (PowerShell 7+) version 0.1.1
 # Disclaimer: Use at your own risk. Always back up your data before making system changes. Please be advised if you use Edge Browser and WebView components,
 # the script is not intended for such use cases as removing them does not make sense
 
@@ -1014,10 +1014,11 @@ Write-Host "5: Generate ISO (dual-boot BIOS/UEFI)"
 Write-Host "6: Optimize and Export Image to ESD (dism.exe)"
 Write-Host "7: Remove Safe Appx Provisioned Packages (Win10/Win11 auto-detect)"
 Write-Host "8: Optimize boot.wim image for export"
+Write-Host "9: Remove All Edge + Safe Appx, then optimize install.wim + boot.wim"
 
-$choice = [string](Read-Host "Enter your choice (0/1/2/3/4/5/6/7/8)")
+$choice = [string](Read-Host "Enter your choice (0/1/2/3/4/5/6/7/8/9)")
 $choice = $choice.Trim()
-if ($choice -notin @('0', '1', '2', '3', '4', '5', '6', '7', '8')) {
+if ($choice -notin @('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')) {
     Write-Host "Invalid choice '$choice'. Exiting." -ForegroundColor Red
     exit 1
 }
@@ -1173,6 +1174,12 @@ function Process-Edition {
                 $safePatterns = Get-SafeAppxPatterns -BuildNumber $buildNumber
                 Remove-SafeProvisionedAppx -MountPath $mountPath -Patterns $safePatterns
             }
+            '9' {
+                Run-DismRemove -MountPath $mountPath -Option "/Remove-Edge"
+                $buildNumber = Get-ImageBuildNumber -WimPath $WimPath -Index $idx
+                $safePatterns = Get-SafeAppxPatterns -BuildNumber $buildNumber
+                Remove-SafeProvisionedAppx -MountPath $mountPath -Patterns $safePatterns
+            }
             default { Write-Host "Invalid choice."; exit 1 }
         }
         Commit-Wim -MountPath $mountPath
@@ -1192,12 +1199,28 @@ foreach ($idx in $selectedIndexes) {
 # After all editions is/are processed, optimize the WIM image
 Optimize-WimImage -WimPath $WimPath -Indexes $selectedIndexes
 
+if ($choice -eq '9') {
+    $bootWimPath = Join-Path (Split-Path $WimPath -Parent) 'boot.wim'
+    if (!(Test-Path $bootWimPath)) {
+        Write-Host "boot.wim was not found at expected path: $bootWimPath" -ForegroundColor Red
+        $script:errorsFound = $true
+    }
+    else {
+        Optimize-BootWimImage -BootWimPath $bootWimPath
+    }
+}
+
 # If input was ISO, save updated ISO before cleanup via reusable function
 if ($isoExtracted -and (Test-Path $tempExtractPath)) {
-    $defaultName = Get-DefaultIsoFileName -SourcePath $tempExtractPath
-    $outputIso = Join-Path (Get-Location) $defaultName
-    Write-Host "Saving updated ISO as $outputIso..." -ForegroundColor Cyan
-    New-DualBootIso -SourcePath $tempExtractPath -OutputIso $outputIso -Label $GlobalIsoLabel
+    if ($choice -eq '9') {
+        Export-UpdatedIsoIfRequested -IsoWasExtracted $isoExtracted -TempExtractPath $tempExtractPath -IsoLabel $GlobalIsoLabel
+    }
+    else {
+        $defaultName = Get-DefaultIsoFileName -SourcePath $tempExtractPath
+        $outputIso = Join-Path (Get-Location) $defaultName
+        Write-Host "Saving updated ISO as $outputIso..." -ForegroundColor Cyan
+        New-DualBootIso -SourcePath $tempExtractPath -OutputIso $outputIso -Label $GlobalIsoLabel
+    }
 }
 
 Cleanup-WimMounts
