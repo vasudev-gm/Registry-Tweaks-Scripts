@@ -1,4 +1,4 @@
-﻿# Hybrid GUI/CMD based Edge Removal Script for Windows 11 ISO (PowerShell 7+) version 0.1.1
+﻿# Hybrid GUI/CMD based Edge Removal Script for Windows 11 ISO (PowerShell 7+) version 0.1.2
 # Disclaimer: Use at your own risk. Always back up your data before making system changes. Please be advised if you use Edge Browser and WebView components,
 # the script is not intended for such use cases as removing them does not make sense
 
@@ -280,7 +280,7 @@ function Get-DefaultIsoFileName {
     }
     catch { }
     finally {
-        if ($mountedIsoPath -and $mountedImagePath) {
+        if ($mountedIsoPath) {
             Dismount-DiskImage -ImagePath $SourcePath -ErrorAction SilentlyContinue | Out-Null
         }
     }
@@ -343,6 +343,26 @@ function Pause-ForExit {
     } while ($resp -notmatch '^(?i:e|0)$')
 }
 
+function Resolve-OutputIsoPath {
+    param(
+        [string]$OutputPath,
+        [string]$DefaultName
+    )
+
+    $resolvedOutput = $OutputPath
+    if ($null -ne $resolvedOutput) { $resolvedOutput = ([string]$resolvedOutput).Trim() }
+    if ([string]::IsNullOrWhiteSpace($resolvedOutput)) { $resolvedOutput = $DefaultName }
+    if (-not ($resolvedOutput.ToLower().EndsWith('.iso'))) { $resolvedOutput = "$resolvedOutput.iso" }
+    if (-not [IO.Path]::IsPathRooted($resolvedOutput)) { $resolvedOutput = Join-Path (Get-Location) $resolvedOutput }
+
+    $outDir = Split-Path -Path $resolvedOutput -Parent
+    if ($outDir -and -not (Test-Path $outDir)) {
+        New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+    }
+
+    return $resolvedOutput
+}
+
 function Export-UpdatedIsoIfRequested {
     param(
         [bool]$IsoWasExtracted,
@@ -370,19 +390,7 @@ function Export-UpdatedIsoIfRequested {
         $outputResp = [string](Read-Host "Enter output ISO file name or full path (default: $defaultName)")
         $outputResp = $outputResp.Trim()
     }
-    if ([string]::IsNullOrWhiteSpace($outputResp)) { $outputResp = $defaultName }
-    if (-not ($outputResp.ToLower().EndsWith('.iso'))) { $outputResp = "$outputResp.iso" }
-    if ([IO.Path]::IsPathRooted($outputResp)) {
-        $outputIsoPath = $outputResp
-    }
-    else {
-        $outputIsoPath = Join-Path (Get-Location) $outputResp
-    }
-
-    $outDir = Split-Path -Path $outputIsoPath -Parent
-    if ($outDir -and -not (Test-Path $outDir)) {
-        New-Item -ItemType Directory -Path $outDir -Force | Out-Null
-    }
+    $outputIsoPath = Resolve-OutputIsoPath -OutputPath $outputResp -DefaultName $defaultName
 
     Write-Host "Saving updated ISO as $outputIsoPath..." -ForegroundColor Cyan
     $exportResult = New-DualBootIso -SourcePath $TempExtractPath -OutputIso $outputIsoPath -Label $IsoLabel
@@ -412,6 +420,10 @@ function Show-MinimalGui {
     $form.Size = New-Object System.Drawing.Size(600, 360)
     $form.StartPosition = 'CenterScreen'
     $form.Topmost = $true
+    $toolTip = New-Object System.Windows.Forms.ToolTip
+    $toolTip.AutoPopDelay = 12000
+    $toolTip.InitialDelay = 400
+    $toolTip.ReshowDelay = 100
 
     # ISO/WIM path
     $lblPath = New-Object System.Windows.Forms.Label
@@ -423,6 +435,7 @@ function Show-MinimalGui {
     $tbPath.Location = New-Object System.Drawing.Point(120, 15)
     $tbPath.Size = New-Object System.Drawing.Size(300, 22)
     $tbPath.AllowDrop = $true
+    $toolTip.SetToolTip($tbPath, 'Select a Windows ISO, extracted ISO folder, or sources\install.wim/install.esd file. Drag and drop is supported.')
     $tbPath.Add_DragEnter({ if ($_.Data.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) { $_.Effect = 'Copy' } })
     $tbPath.Add_DragDrop({
             $items = $_.Data.GetData([System.Windows.Forms.DataFormats]::FileDrop)
@@ -435,6 +448,7 @@ function Show-MinimalGui {
     $btnBrowse = New-Object System.Windows.Forms.Button
     $btnBrowse.Text = 'Browse File...'
     $btnBrowse.Location = New-Object System.Drawing.Point(430, 14)
+    $toolTip.SetToolTip($btnBrowse, 'Browse for a Windows ISO, WIM, or ESD file.')
     $btnBrowse.Add_Click({
             $dlg = New-Object System.Windows.Forms.OpenFileDialog
             $dlg.Title = 'Select ISO or WIM'
@@ -448,6 +462,7 @@ function Show-MinimalGui {
     $btnBrowseFolder = New-Object System.Windows.Forms.Button
     $btnBrowseFolder.Text = 'Folder...'
     $btnBrowseFolder.Location = New-Object System.Drawing.Point(520, 14)
+    $toolTip.SetToolTip($btnBrowseFolder, 'Browse for an extracted Windows ISO folder containing a sources folder.')
     $btnBrowseFolder.Add_Click({
             $fbd = New-Object System.Windows.Forms.FolderBrowserDialog
             $fbd.Description = 'Select extracted ISO folder (contains sources\\install.wim)'
@@ -479,7 +494,8 @@ function Show-MinimalGui {
             '8 - Optimize boot.wim image',
             '9 - Remove All Edge + Safe Appx, then optimize install.wim + boot.wim'
         ))
-    $cbOp.SelectedIndex = 0
+    $cbOp.SelectedIndex = 8
+    $toolTip.SetToolTip($cbOp, 'Default is the recommended all-in-one cleanup and optimization flow. Advanced users can choose a narrower operation.')
 
     # Edition indexes
     $lblIdx = New-Object System.Windows.Forms.Label
@@ -495,6 +511,7 @@ function Show-MinimalGui {
     [void]$clbIdx.Items.Add('* - All editions')
     $clbIdx.SetItemChecked(0, $true)
     $script:__idxControlRef = $clbIdx
+    $toolTip.SetToolTip($clbIdx, 'Use all editions for normal ISO cleanup. Advanced users can select specific image indexes after a path is loaded.')
 
     # Helper to resolve WIM path from input and populate editions
     $populateEditions = {
@@ -628,6 +645,7 @@ function Show-MinimalGui {
     $tbIsoLabel.Size = New-Object System.Drawing.Size(280, 22)
     $tbIsoLabel.Text = $GlobalIsoLabel
     $script:LastSuggestedIsoLabel = $tbIsoLabel.Text
+    $toolTip.SetToolTip($tbIsoLabel, 'Optional ISO volume label used when exporting a new ISO.')
 
     # Output ISO name/path (optional)
     $lblOutIso = New-Object System.Windows.Forms.Label
@@ -640,10 +658,12 @@ function Show-MinimalGui {
     $tbOutIso.Size = New-Object System.Drawing.Size(240, 22)
     $tbOutIso.Text = Get-DefaultIsoFileName -SourcePath $null
     $script:LastSuggestedIsoName = $tbOutIso.Text
+    $toolTip.SetToolTip($tbOutIso, 'Optional output ISO file name or full path. Relative names are saved in the current working directory.')
 
     $btnSaveAs = New-Object System.Windows.Forms.Button
     $btnSaveAs.Text = 'Save As...'
     $btnSaveAs.Location = New-Object System.Drawing.Point(450, 164)
+    $toolTip.SetToolTip($btnSaveAs, 'Choose where the exported ISO should be saved.')
     $btnSaveAs.Add_Click({
             $sdlg = New-Object System.Windows.Forms.SaveFileDialog
             $sdlg.Title = 'Choose output ISO name'
@@ -653,6 +673,31 @@ function Show-MinimalGui {
                 $tbOutIso.Text = $sdlg.FileName
             }
         })
+
+    $lblStatus = New-Object System.Windows.Forms.Label
+    $lblStatus.Text = 'Recommended: remove Edge, remove the safe Appx list, then optimize install.wim and boot.wim.'
+    $lblStatus.Location = New-Object System.Drawing.Point(12, 200)
+    $lblStatus.Size = New-Object System.Drawing.Size(560, 32)
+    $lblStatus.ForeColor = [System.Drawing.Color]::DimGray
+
+    $updateStatus = {
+        $selectedOp = $cbOp.SelectedItem
+        if ($selectedOp -like '9*') {
+            $lblStatus.Text = 'Recommended: remove Edge, remove the safe Appx list, then optimize install.wim and boot.wim.'
+        }
+        elseif ($selectedOp -like '5*') {
+            $lblStatus.Text = 'Export a bootable ISO from an extracted Windows source folder or mounted/extracted ISO content.'
+        }
+        elseif ($selectedOp -like '6*') {
+            $lblStatus.Text = 'Export selected install.wim editions to install.esd for a smaller ISO source.'
+        }
+        elseif ($selectedOp -like '8*') {
+            $lblStatus.Text = 'Optimize boot.wim only. Edition indexes are not used for this operation.'
+        }
+        else {
+            $lblStatus.Text = 'Advanced operation selected. Review the edition indexes before starting.'
+        }
+    }
 
     # Show ISO fields only for operation 5 (Generate ISO), and adjust layout dynamically
     $setIsoFieldsVisibility = {
@@ -675,15 +720,19 @@ function Show-MinimalGui {
             $tbOutIso.Location = New-Object System.Drawing.Point(200, $y2)
             $btnSaveAs.Location = New-Object System.Drawing.Point(450, ($y2 - 1))
             $y3 = $y2 + 30
-            if ($chkElevate) { $chkElevate.Location = New-Object System.Drawing.Point(120, $y3) }
+            if ($lblStatus) { $lblStatus.Location = New-Object System.Drawing.Point(12, $y3) }
             $y4 = $y3 + 40
-            if ($btnOk) { $btnOk.Location = New-Object System.Drawing.Point(280, $y4) }
-            if ($btnCancel) { $btnCancel.Location = New-Object System.Drawing.Point(370, $y4) }
-            $form.Height = $y4 + 120
+            if ($chkElevate) { $chkElevate.Location = New-Object System.Drawing.Point(120, $y4) }
+            $y5 = $y4 + 40
+            if ($btnOk) { $btnOk.Location = New-Object System.Drawing.Point(280, $y5) }
+            if ($btnCancel) { $btnCancel.Location = New-Object System.Drawing.Point(370, $y5) }
+            $form.Height = $y5 + 120
         }
         else {
-            if ($chkElevate) { $chkElevate.Location = New-Object System.Drawing.Point(120, $baseY) }
-            $yBtn = $baseY + 40
+            if ($lblStatus) { $lblStatus.Location = New-Object System.Drawing.Point(12, $baseY) }
+            $yElevate = $baseY + 40
+            if ($chkElevate) { $chkElevate.Location = New-Object System.Drawing.Point(120, $yElevate) }
+            $yBtn = $yElevate + 40
             if ($btnOk) { $btnOk.Location = New-Object System.Drawing.Point(280, $yBtn) }
             if ($btnCancel) { $btnCancel.Location = New-Object System.Drawing.Point(370, $yBtn) }
             $form.Height = $yBtn + 120
@@ -698,6 +747,7 @@ function Show-MinimalGui {
             & $setIsoFieldsVisibility $isIsoGenLocal
             & $populateEditions
             & $setEditionSelectorState
+            & $updateStatus
         })
 
     # Elevation option
@@ -706,11 +756,13 @@ function Show-MinimalGui {
     $chkElevate.Location = New-Object System.Drawing.Point(120, 200)
     $chkElevate.AutoSize = $true
     $chkElevate.Checked = $true
+    $toolTip.SetToolTip($chkElevate, 'Keep enabled for normal use. DISM servicing, ISO mounting, and image cleanup usually require Administrator rights.')
 
     # Buttons
     $btnOk = New-Object System.Windows.Forms.Button
     $btnOk.Text = 'Start'
     $btnOk.Location = New-Object System.Drawing.Point(280, 240)
+    $toolTip.SetToolTip($btnOk, 'Start the selected operation. A console window will show detailed progress.')
     $btnOk.Add_Click({
             if (-not [string]::IsNullOrWhiteSpace($tbPath.Text)) {
                 $script:IsoOrWimPath = $tbPath.Text.Trim()
@@ -752,17 +804,19 @@ function Show-MinimalGui {
     $btnCancel = New-Object System.Windows.Forms.Button
     $btnCancel.Text = 'Cancel'
     $btnCancel.Location = New-Object System.Drawing.Point(370, 240)
+    $toolTip.SetToolTip($btnCancel, 'Close without starting an operation.')
     $btnCancel.Add_Click({
             $form.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
             $form.Close()
         })
 
-    $form.Controls.AddRange(@($lblPath, $tbPath, $btnBrowse, $btnBrowseFolder, $lblOp, $cbOp, $lblIdx, $clbIdx, $lblIsoLabel, $tbIsoLabel, $lblOutIso, $tbOutIso, $btnSaveAs, $chkElevate, $btnOk, $btnCancel))
+    $form.Controls.AddRange(@($lblPath, $tbPath, $btnBrowse, $btnBrowseFolder, $lblOp, $cbOp, $lblIdx, $clbIdx, $lblIsoLabel, $tbIsoLabel, $lblOutIso, $tbOutIso, $btnSaveAs, $lblStatus, $chkElevate, $btnOk, $btnCancel))
     # Apply layout once controls exist
     & $setIsoFieldsVisibility ($cbOp.SelectedItem -like '5*')
     # Populate editions now if a path was provided via CLI
     & $populateEditions
     & $setEditionSelectorState
+    & $updateStatus
     [void]$form.ShowDialog()
 }
 
@@ -952,22 +1006,33 @@ if (Test-Path $cleanPath) {
         $tempExtractPath = Join-Path $env:TEMP ("ISOExtract_" + [guid]::NewGuid().ToString())
         New-Item -ItemType Directory -Path $tempExtractPath | Out-Null
         Write-Host "Mounting ISO: $cleanPath" -ForegroundColor Cyan
-        $mountResult = Mount-DiskImage -ImagePath $cleanPath -PassThru
-        $driveLetter = ($mountResult | Get-Volume).DriveLetter
-        if ($driveLetter) {
+        $mountResult = $null
+        try {
+            $mountResult = Mount-DiskImage -ImagePath $cleanPath -PassThru -ErrorAction Stop
+            $driveLetter = ($mountResult | Get-Volume -ErrorAction Stop).DriveLetter
+            if (-not $driveLetter) { throw "Mounted ISO did not expose a drive letter." }
+
             $isoDrive = "${driveLetter}:\"
             Write-Host "Copying ISO contents to $tempExtractPath..." -ForegroundColor Cyan
-            Copy-Item -Path $isoDrive\* -Destination $tempExtractPath -Recurse
-            Dismount-DiskImage -ImagePath $cleanPath
-            # Remove read-only attribute from all files in extracted folder
-            Get-ChildItem -Path $tempExtractPath -Recurse -File | ForEach-Object { Set-ItemProperty -Path $_.FullName -Name Attributes -Value ((Get-ItemProperty -Path $_.FullName -Name Attributes).Attributes -band (-bnot [System.IO.FileAttributes]::ReadOnly)) }
-            $WimPath = Join-Path $tempExtractPath 'sources\install.wim'
-            $isoExtracted = $true
+            Copy-Item -Path $isoDrive\* -Destination $tempExtractPath -Recurse -ErrorAction Stop
         }
-        else {
-            Write-Error "Failed to mount ISO."
+        catch {
+            Write-Error "Failed to extract ISO '$cleanPath': ${_}"
+            if (Test-Path $tempExtractPath) {
+                Remove-Item -Path $tempExtractPath -Recurse -Force -ErrorAction SilentlyContinue
+            }
             exit 1
         }
+        finally {
+            if ($mountResult) {
+                Dismount-DiskImage -ImagePath $cleanPath -ErrorAction SilentlyContinue | Out-Null
+            }
+        }
+
+        # Remove read-only attribute from all files in extracted folder
+        Get-ChildItem -Path $tempExtractPath -Recurse -File | ForEach-Object { Set-ItemProperty -Path $_.FullName -Name Attributes -Value ((Get-ItemProperty -Path $_.FullName -Name Attributes).Attributes -band (-bnot [System.IO.FileAttributes]::ReadOnly)) }
+        $WimPath = Join-Path $tempExtractPath 'sources\install.wim'
+        $isoExtracted = $true
     }
     else {
         $WimPath = $cleanPath
@@ -1081,13 +1146,13 @@ function Get-WimEditions {
 # Mount offline WIM image for servicing
 function Mount-Wim {
     param([string]$WimPath, [int]$Index, [string]$MountPath)
-    Mount-WindowsImage -ImagePath $WimPath -Index $Index -Path $MountPath -CheckIntegrity -Optimize
+    Mount-WindowsImage -ImagePath $WimPath -Index $Index -Path $MountPath -CheckIntegrity -Optimize -ErrorAction Stop
 }
 
 # Commit changes and unmount WIM image with proper integrity checks
 function Commit-Wim {
     param([string]$MountPath)
-    Dismount-WindowsImage -Path $MountPath -Save -CheckIntegrity
+    Dismount-WindowsImage -Path $MountPath -Save -CheckIntegrity -ErrorAction Stop
 }
 
 function Run-DismRemove {
@@ -1417,14 +1482,12 @@ if ($script:SkipServicingForIsoExport) {
     $sourceRoot = $script:IsoExportSourceRoot
     if (-not $outputIso) {
         $defaultName = Get-DefaultIsoFileName -SourcePath $sourceRoot
-        $outputIso = Join-Path (Get-Location) $defaultName
+        $outputIso = Resolve-OutputIsoPath -OutputPath $null -DefaultName $defaultName
     }
     else {
-        if (-not ($outputIso.ToLower().EndsWith('.iso'))) { $outputIso = "$outputIso.iso" }
-        if (-not [IO.Path]::IsPathRooted($outputIso)) { $outputIso = (Join-Path (Get-Location) $outputIso) }
+        $defaultName = Get-DefaultIsoFileName -SourcePath $sourceRoot
+        $outputIso = Resolve-OutputIsoPath -OutputPath $outputIso -DefaultName $defaultName
     }
-    $outDir = Split-Path -Path $outputIso -Parent
-    if ($outDir -and -not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
 
     Write-Host "Generating ISO from $sourceRoot ..." -ForegroundColor Cyan
     $isoOk = New-DualBootIso -SourcePath $sourceRoot -OutputIso $outputIso -Label $GlobalIsoLabel
@@ -1612,17 +1675,11 @@ if ($choice -eq '5') {
     if (-not $outputIso) {
         $resp = [string](Read-Host "Enter output ISO file name or full path (default: $defaultName)")
         $resp = $resp.Trim()
-        if ([string]::IsNullOrWhiteSpace($resp)) { $resp = $defaultName }
-        if (-not ($resp.ToLower().EndsWith('.iso'))) { $resp = "$resp.iso" }
-        if ([IO.Path]::IsPathRooted($resp)) { $outputIso = $resp } else { $outputIso = (Join-Path (Get-Location) $resp) }
+        $outputIso = Resolve-OutputIsoPath -OutputPath $resp -DefaultName $defaultName
     }
     else {
-        if (-not ($outputIso.ToLower().EndsWith('.iso'))) { $outputIso = "$outputIso.iso" }
-        if (-not [IO.Path]::IsPathRooted($outputIso)) { $outputIso = (Join-Path (Get-Location) $outputIso) }
+        $outputIso = Resolve-OutputIsoPath -OutputPath $outputIso -DefaultName $defaultName
     }
-    # Ensure output directory exists
-    $outDir = Split-Path -Path $outputIso -Parent
-    if ($outDir -and -not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
 
     if ($isoSourcePath) {
         Write-Host "Generating ISO from $isoSourcePath ..." -ForegroundColor Cyan
@@ -1651,8 +1708,11 @@ function Process-Edition {
     param([int]$idx)
     $mountPath = "$env:TEMP\WimMount_${idx}"
     if (!(Test-Path $mountPath)) { New-Item -ItemType Directory -Path $mountPath | Out-Null }
+    $mounted = $false
+    $committed = $false
     try {
         Mount-Wim -WimPath $WimPath -Index $idx -MountPath $mountPath
+        $mounted = $true
     }
     catch {
         Write-Host "Failed to mount edition index ${idx}: ${_}" -ForegroundColor Red
@@ -1679,11 +1739,18 @@ function Process-Edition {
             default { Write-Host "Invalid choice."; exit 1 }
         }
         Commit-Wim -MountPath $mountPath
+        $committed = $true
         Write-Host "Changes committed to ${WimPath} for edition index ${idx}." -ForegroundColor Green
     }
     catch {
         Write-Host "Failed to commit edition index ${idx}: ${_}" -ForegroundColor Red
         $script:errorsFound = $true
+    }
+    finally {
+        if ($mounted -and -not $committed) {
+            Write-Host "Discarding uncommitted mount for edition index ${idx}..." -ForegroundColor Yellow
+            Discard-Image -MountPath $mountPath
+        }
     }
 }
 
@@ -1715,11 +1782,11 @@ if ($isoExtracted -and (Test-Path $tempExtractPath)) {
     else {
         if (-not $outputIso) {
             $defaultName = Get-DefaultIsoFileName -SourcePath $tempExtractPath
-            $outputIso = Join-Path (Get-Location) $defaultName
+            $outputIso = Resolve-OutputIsoPath -OutputPath $null -DefaultName $defaultName
         }
         else {
-            if (-not ($outputIso.ToLower().EndsWith('.iso'))) { $outputIso = "$outputIso.iso" }
-            if (-not [IO.Path]::IsPathRooted($outputIso)) { $outputIso = (Join-Path (Get-Location) $outputIso) }
+            $defaultName = Get-DefaultIsoFileName -SourcePath $tempExtractPath
+            $outputIso = Resolve-OutputIsoPath -OutputPath $outputIso -DefaultName $defaultName
         }
         Write-Host "Saving updated ISO as $outputIso..." -ForegroundColor Cyan
         New-DualBootIso -SourcePath $tempExtractPath -OutputIso $outputIso -Label $GlobalIsoLabel

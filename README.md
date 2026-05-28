@@ -13,6 +13,21 @@ These scripts use DISM to remove Edge and related dependencies, clean Start menu
 
 If you are searching for a Windows 10/11 Edge removal script for custom ISO builds, start with the scripts above.
 
+### Which Script Should I Use?
+
+- Normal users: run [Remove-Edge-ISO-GUI.ps1](Remove-Edge-ISO-GUI.ps1). It uses lightweight built-in WinForms, defaults to the recommended all-in-one cleanup operation, and avoids WinUI 3 packaging overhead.
+- Advanced users: run [Remove-Edge-ISO.ps1](Remove-Edge-ISO.ps1) from PowerShell 7 for a command-line-first interactive flow.
+
+Examples:
+
+```powershell
+pwsh -ExecutionPolicy Bypass -File .\Remove-Edge-ISO-GUI.ps1
+pwsh -ExecutionPolicy Bypass -File .\Remove-Edge-ISO-GUI.ps1 -Gui -IsoOrWimPath "D:\Win11.iso"
+pwsh -ExecutionPolicy Bypass -File .\Remove-Edge-ISO.ps1 -IsoOrWimPath "D:\Win11.iso"
+```
+
+Requirements: PowerShell 7+, Administrator rights for servicing operations, the Windows DISM/Storage PowerShell modules, and Windows ADK Deployment Tools or `oscdimg.exe` on PATH when exporting ISO files.
+
 I will basically divide it into 2 directories/sections called cmds and reg_tweaks which I commonly use when creating custom up-to-date windows 10 or 11 ISO using WinToolkit,NTLite and W10UI. I will include direct links for DirectX9, NetFX35 and VC++ runtimes repacks etc.
 
 Thank you abbodi1406, Majorgeeks, WinAero for reg tweaks, repacks and scripts.

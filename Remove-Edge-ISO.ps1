@@ -1,4 +1,4 @@
-# Edge Removal Script for Windows 11 ISO (PowerShell 7+) version 0.1.1
+# Edge Removal Script for Windows 11 ISO (PowerShell 7+) version 0.1.2
 # Disclaimer: Use at your own risk. Always back up your data before making system changes. Please be advised if you use Edge Browser and WebView components,
 # the script is not intended for such use cases as removing them does not make sense
 
@@ -256,6 +256,26 @@ function Read-YesNo {
     return ($resp -match '^(?i:y|yes)$')
 }
 
+function Resolve-OutputIsoPath {
+    param(
+        [string]$OutputPath,
+        [string]$DefaultName
+    )
+
+    $resolvedOutput = $OutputPath
+    if ($null -ne $resolvedOutput) { $resolvedOutput = ([string]$resolvedOutput).Trim() }
+    if ([string]::IsNullOrWhiteSpace($resolvedOutput)) { $resolvedOutput = $DefaultName }
+    if (-not ($resolvedOutput.ToLower().EndsWith('.iso'))) { $resolvedOutput = "$resolvedOutput.iso" }
+    if (-not [IO.Path]::IsPathRooted($resolvedOutput)) { $resolvedOutput = Join-Path (Get-Location) $resolvedOutput }
+
+    $outDir = Split-Path -Path $resolvedOutput -Parent
+    if ($outDir -and -not (Test-Path $outDir)) {
+        New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+    }
+
+    return $resolvedOutput
+}
+
 function Get-DefaultIsoFileName {
     param([string]$SourcePath)
 
@@ -333,6 +353,31 @@ function Get-DefaultIsoFileName {
         return $null
     }
 
+    function Resolve-TokensFromPathHint {
+        param([string]$PathHint)
+
+        if ([string]::IsNullOrWhiteSpace($PathHint)) { return $null }
+        $text = [string]$PathHint
+
+        $prefixHint = $null
+        if ($text -match '(?i)win\s*11|windows\s*11') { $prefixHint = 'Win11' }
+        elseif ($text -match '(?i)win\s*10|windows\s*10') { $prefixHint = 'Win10' }
+
+        $releaseHint = $null
+        if ($text -match '(?i)(2[0-9]H[12])') { $releaseHint = $matches[1].ToUpper() }
+
+        $archHint = $null
+        if ($text -match '(?i)arm64') { $archHint = 'arm64' }
+        elseif ($text -match '(?i)amd64|x64') { $archHint = 'amd64' }
+        elseif ($text -match '(?i)\bx86\b') { $archHint = 'x86' }
+
+        return [PSCustomObject]@{
+            Prefix       = $prefixHint
+            ReleaseToken = $releaseHint
+            ArchToken    = $archHint
+        }
+    }
+
     try {
         $imagePath = Resolve-ImagePath -PathHint $SourcePath
         if ($imagePath) {
@@ -352,6 +397,15 @@ function Get-DefaultIsoFileName {
         }
     }
     catch { }
+
+    if (($prefix -eq 'Windows' -or [string]::IsNullOrWhiteSpace($releaseToken)) -and -not [string]::IsNullOrWhiteSpace($SourcePath)) {
+        $hintTokens = Resolve-TokensFromPathHint -PathHint $SourcePath
+        if ($hintTokens) {
+            if ($hintTokens.Prefix) { $prefix = $hintTokens.Prefix }
+            if ([string]::IsNullOrWhiteSpace($releaseToken) -and $hintTokens.ReleaseToken) { $releaseToken = $hintTokens.ReleaseToken }
+            if ($hintTokens.ArchToken) { $archToken = $hintTokens.ArchToken }
+        }
+    }
 
     if ([string]::IsNullOrWhiteSpace($archToken)) {
         $fallbackArch = Resolve-ArchToken -ArchValue $env:PROCESSOR_ARCHITECTURE
@@ -409,20 +463,7 @@ function Export-UpdatedIsoIfRequested {
 
     $defaultName = Get-DefaultIsoFileName -SourcePath $TempExtractPath
     $outputResp = [string](Read-Host "Enter output ISO file name or full path (default: $defaultName)")
-    $outputResp = $outputResp.Trim()
-    if ([string]::IsNullOrWhiteSpace($outputResp)) { $outputResp = $defaultName }
-    if (-not ($outputResp.ToLower().EndsWith('.iso'))) { $outputResp = "$outputResp.iso" }
-    if ([IO.Path]::IsPathRooted($outputResp)) {
-        $outputIsoPath = $outputResp
-    }
-    else {
-        $outputIsoPath = Join-Path (Get-Location) $outputResp
-    }
-
-    $outDir = Split-Path -Path $outputIsoPath -Parent
-    if ($outDir -and -not (Test-Path $outDir)) {
-        New-Item -ItemType Directory -Path $outDir -Force | Out-Null
-    }
+    $outputIsoPath = Resolve-OutputIsoPath -OutputPath $outputResp -DefaultName $defaultName
 
     Write-Host "Saving updated ISO as $outputIsoPath..." -ForegroundColor Cyan
     $exportResult = New-DualBootIso -SourcePath $TempExtractPath -OutputIso $outputIsoPath -Label $IsoLabel
@@ -619,22 +660,33 @@ if (Test-Path $cleanPath) {
         $tempExtractPath = Join-Path $env:TEMP ("ISOExtract_" + [guid]::NewGuid().ToString())
         New-Item -ItemType Directory -Path $tempExtractPath | Out-Null
         Write-Host "Mounting ISO: $cleanPath" -ForegroundColor Cyan
-        $mountResult = Mount-DiskImage -ImagePath $cleanPath -PassThru
-        $driveLetter = ($mountResult | Get-Volume).DriveLetter
-        if ($driveLetter) {
+        $mountResult = $null
+        try {
+            $mountResult = Mount-DiskImage -ImagePath $cleanPath -PassThru -ErrorAction Stop
+            $driveLetter = ($mountResult | Get-Volume -ErrorAction Stop).DriveLetter
+            if (-not $driveLetter) { throw "Mounted ISO did not expose a drive letter." }
+
             $isoDrive = "${driveLetter}:\"
             Write-Host "Copying ISO contents to $tempExtractPath..." -ForegroundColor Cyan
-            Copy-Item -Path $isoDrive\* -Destination $tempExtractPath -Recurse
-            Dismount-DiskImage -ImagePath $cleanPath
-            # Remove read-only attribute from all files in extracted folder
-            Get-ChildItem -Path $tempExtractPath -Recurse -File | ForEach-Object { Set-ItemProperty -Path $_.FullName -Name Attributes -Value ((Get-ItemProperty -Path $_.FullName -Name Attributes).Attributes -band (-bnot [System.IO.FileAttributes]::ReadOnly)) }
-            $WimPath = Join-Path $tempExtractPath 'sources\install.wim'
-            $isoExtracted = $true
+            Copy-Item -Path $isoDrive\* -Destination $tempExtractPath -Recurse -ErrorAction Stop
         }
-        else {
-            Write-Error "Failed to mount ISO."
+        catch {
+            Write-Error "Failed to extract ISO '$cleanPath': ${_}"
+            if (Test-Path $tempExtractPath) {
+                Remove-Item -Path $tempExtractPath -Recurse -Force -ErrorAction SilentlyContinue
+            }
             exit 1
         }
+        finally {
+            if ($mountResult) {
+                Dismount-DiskImage -ImagePath $cleanPath -ErrorAction SilentlyContinue | Out-Null
+            }
+        }
+
+        # Remove read-only attribute from all files in extracted folder
+        Get-ChildItem -Path $tempExtractPath -Recurse -File | ForEach-Object { Set-ItemProperty -Path $_.FullName -Name Attributes -Value ((Get-ItemProperty -Path $_.FullName -Name Attributes).Attributes -band (-bnot [System.IO.FileAttributes]::ReadOnly)) }
+        $WimPath = Join-Path $tempExtractPath 'sources\install.wim'
+        $isoExtracted = $true
     }
     else {
         $WimPath = $cleanPath
@@ -654,6 +706,8 @@ if (-not (Get-Module -ListAvailable -Name DISM)) {
 }
 
 # If install.esd is present under sources, convert it to install.wim before proceeding.
+$script:SkipServicingForIsoExport = $false
+$script:IsoExportSourceRoot = $null
 $installDir = [IO.Path]::GetDirectoryName($WimPath)
 $esdCandidate = Join-Path $installDir 'install.esd'
 
@@ -671,31 +725,17 @@ if ((-not (Test-Path $WimPath)) -and (Test-Path $esdCandidate)) {
         Write-Host "Conversion Cancelled! You can still export to ISO using the existing install.esd." -ForegroundColor Yellow
         $exportIsoNow = Read-YesNo -Prompt "Do you want to export to ISO now and skip servicing operations?"
         if ($exportIsoNow) {
-            $sourceRoot = Split-Path -Path $installDir -Parent
-            if (-not (Test-Path $sourceRoot)) {
+            $script:IsoExportSourceRoot = Split-Path -Path $installDir -Parent
+            if (-not (Test-Path $script:IsoExportSourceRoot)) {
                 Write-Error "Could not resolve ISO source root from $installDir."
                 exit 1
             }
-
-            $GlobalIsoLabel = Get-DefaultIsoLabel -SourcePath $sourceRoot -Fallback $GlobalIsoLabel
-
-            $defaultName = Get-DefaultIsoFileName -SourcePath $sourceRoot
-            $outputIso = Join-Path (Get-Location) $defaultName
-            Write-Host "Generating ISO from $sourceRoot ..." -ForegroundColor Cyan
-            $isoOk = New-DualBootIso -SourcePath $sourceRoot -OutputIso $outputIso -Label $GlobalIsoLabel
-            Cleanup-WimMounts
-            Cleanup-ISOExtracts
-            Cleanup-Mountpoints
-            if (-not $isoOk) {
-                Write-Error "ISO export failed."
-                exit 1
-            }
-            Write-Host "ISO export completed." -ForegroundColor Green
-            exit 0
+            $script:SkipServicingForIsoExport = $true
         }
-
-        Write-Error "install.wim is missing and conversion was declined. Cannot continue servicing."
-        exit 1
+        else {
+            Write-Error "install.wim is missing and conversion was declined. Cannot continue servicing."
+            exit 1
+        }
     }
 }
 
@@ -718,14 +758,44 @@ if ($WimPath -notmatch "\.wim$") {
             $WimPath = $targetWimPath
         }
         else {
-            Write-Error "No install.wim is available and conversion was declined. Cannot continue servicing."
-            exit 1
+            Write-Host "No install.wim is available. You can still export to ISO using install.esd." -ForegroundColor Yellow
+            $exportIsoNow = Read-YesNo -Prompt "Do you want to export to ISO now and skip servicing operations?"
+            if ($exportIsoNow) {
+                $script:IsoExportSourceRoot = Split-Path -Path ([IO.Path]::GetDirectoryName($WimPath)) -Parent
+                if (-not (Test-Path $script:IsoExportSourceRoot)) {
+                    Write-Error "Could not resolve ISO source root from $WimPath."
+                    exit 1
+                }
+                $script:SkipServicingForIsoExport = $true
+            }
+            else {
+                Write-Error "No install.wim is available and conversion was declined. Cannot continue servicing."
+                exit 1
+            }
         }
     }
     else {
         Write-Error "File '$WimPath' is not a WIM file."
         exit 1
     }
+}
+
+if ($script:SkipServicingForIsoExport) {
+    $sourceRoot = $script:IsoExportSourceRoot
+    $GlobalIsoLabel = Get-DefaultIsoLabel -SourcePath $sourceRoot -Fallback $GlobalIsoLabel
+    $defaultName = Get-DefaultIsoFileName -SourcePath $sourceRoot
+    $outputIso = Resolve-OutputIsoPath -OutputPath $null -DefaultName $defaultName
+    Write-Host "Generating ISO from $sourceRoot ..." -ForegroundColor Cyan
+    $isoOk = New-DualBootIso -SourcePath $sourceRoot -OutputIso $outputIso -Label $GlobalIsoLabel
+    Cleanup-WimMounts
+    Cleanup-ISOExtracts
+    Cleanup-Mountpoints
+    if (-not $isoOk) {
+        Write-Error "ISO export failed."
+        exit 1
+    }
+    Write-Host "ISO export completed." -ForegroundColor Green
+    exit 0
 }
 
 function Get-WimEditions {
@@ -744,13 +814,13 @@ function Get-WimEditions {
 # Mount offline WIM image for servicing
 function Mount-Wim {
     param([string]$WimPath, [int]$Index, [string]$MountPath)
-    Mount-WindowsImage -ImagePath $WimPath -Index $Index -Path $MountPath -CheckIntegrity -Optimize
+    Mount-WindowsImage -ImagePath $WimPath -Index $Index -Path $MountPath -CheckIntegrity -Optimize -ErrorAction Stop
 }
 
 # Commit changes and unmount WIM image with proper integrity checks
 function Commit-Wim {
     param([string]$MountPath)
-    Dismount-WindowsImage -Path $MountPath -Save -CheckIntegrity
+    Dismount-WindowsImage -Path $MountPath -Save -CheckIntegrity -ErrorAction Stop
 }
 
 function Run-DismRemove {
@@ -1127,7 +1197,7 @@ if ($choice -eq '5') {
 
     $defaultName = Get-DefaultIsoFileName -SourcePath $isoSourcePath
     $GlobalIsoLabel = Get-DefaultIsoLabel -SourcePath $isoSourcePath -Fallback $GlobalIsoLabel
-    $outputIso = Join-Path (Get-Location) $defaultName
+    $outputIso = Resolve-OutputIsoPath -OutputPath $null -DefaultName $defaultName
 
     if ($isoSourcePath) {
         Write-Host "Generating ISO from $isoSourcePath ..." -ForegroundColor Cyan
@@ -1155,8 +1225,11 @@ function Process-Edition {
     param([int]$idx)
     $mountPath = "$env:TEMP\WimMount_${idx}"
     if (!(Test-Path $mountPath)) { New-Item -ItemType Directory -Path $mountPath | Out-Null }
+    $mounted = $false
+    $committed = $false
     try {
         Mount-Wim -WimPath $WimPath -Index $idx -MountPath $mountPath
+        $mounted = $true
     }
     catch {
         Write-Host "Failed to mount edition index ${idx}: ${_}" -ForegroundColor Red
@@ -1183,10 +1256,18 @@ function Process-Edition {
             default { Write-Host "Invalid choice."; exit 1 }
         }
         Commit-Wim -MountPath $mountPath
+        $committed = $true
         Write-Host "Changes committed to ${WimPath} for edition index ${idx}." -ForegroundColor Green
     }
     catch {
         Write-Host "Failed to commit edition index ${idx}: ${_}" -ForegroundColor Red
+        $script:errorsFound = $true
+    }
+    finally {
+        if ($mounted -and -not $committed) {
+            Write-Host "Discarding uncommitted mount for edition index ${idx}..." -ForegroundColor Yellow
+            Discard-Image -MountPath $mountPath
+        }
     }
 }
 
@@ -1217,7 +1298,7 @@ if ($isoExtracted -and (Test-Path $tempExtractPath)) {
     }
     else {
         $defaultName = Get-DefaultIsoFileName -SourcePath $tempExtractPath
-        $outputIso = Join-Path (Get-Location) $defaultName
+        $outputIso = Resolve-OutputIsoPath -OutputPath $null -DefaultName $defaultName
         Write-Host "Saving updated ISO as $outputIso..." -ForegroundColor Cyan
         New-DualBootIso -SourcePath $tempExtractPath -OutputIso $outputIso -Label $GlobalIsoLabel
     }
