@@ -901,7 +901,8 @@ function Get-SafeAppxPatterns {
         'microsoft.windowscommunicationsapps',
         'Microsoft.WindowsAlarms',
         'Microsoft.Office.OneNote',
-        'Microsoft.Windows.Photos'
+        'Microsoft.Windows.Photos',
+        'Microsoft.MicrosoftEdge*'
     )
 
     $win11Safe = @(
@@ -932,7 +933,8 @@ function Get-SafeAppxPatterns {
         'Microsoft.Todos',
         'Microsoft.GamingApp',
         'Microsoft.Copilot',
-	    'Microsoft.MicrosoftOfficeHub'
+	    'Microsoft.MicrosoftOfficeHub',
+        'Microsoft.MicrosoftEdge*'
     )
 
     if ($BuildNumber -and $BuildNumber -ge 22000) {
