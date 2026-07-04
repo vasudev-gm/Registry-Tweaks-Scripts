@@ -297,7 +297,7 @@ foreach(`$drive in `$isoDrives) {
         } else {
             # If we have internet, try downloading as usual
             Write-Output "Downloading Visual C++ Redistributables..."
-            $vcRedistUrl = "https://gitlab.com/-/project/76069787/uploads/4431f3448fa76633cfd4983142f81952/VisualCppRedist_AIO_x86_x64.exe"
+            $vcRedistUrl = "https://gitlab.com/-/project/76069787/uploads/f3c1bb77471f478d04e44398e812b439/VisualCppRedist_AIO_x86_x64.exe"
             if ($null -eq $vcRedistUrl) {
                 throw "Failed to get the latest Visual C++ Redistributables URL."
             }
