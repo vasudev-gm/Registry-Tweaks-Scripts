@@ -123,6 +123,8 @@ function Test-OfflinePackages {
     $isoDrives = Get-Volume | Where-Object { $_.DriveType -eq 'CD-ROM' -and $_.OperationalStatus -eq 'OK' } | Select-Object -ExpandProperty DriveLetter
     $packagePath = $null
 
+    $vcRedistFileName = Get-VCRedistFileName
+
     # Check each potential ISO drive for the WinApps directory
     foreach ($driveLetter in $isoDrives) {
         $winAppsPath = "${driveLetter}:\WinApps"
@@ -133,7 +135,7 @@ function Test-OfflinePackages {
 
             switch ($PackageName) {
                 "VCRedist" {
-                    $vcRedistFile = Join-Path $winAppsPath "VisualCppRedist_AIO_x86_x64.exe"
+                    $vcRedistFile = Join-Path $winAppsPath $vcRedistFileName
                     if (Test-Path $vcRedistFile) {
                         Write-Verbose "Found VCRedist package in ISO WinApps directory"
                         return $true, $vcRedistFile
@@ -161,7 +163,7 @@ function Test-OfflinePackages {
 
     switch ($PackageName) {
         "VCRedist" {
-            $vcRedistFile = Join-Path $offlineDirectory "VisualCppRedist_AIO_x86_x64.exe"
+            $vcRedistFile = Join-Path $offlineDirectory $vcRedistFileName
             return (Test-Path $vcRedistFile), $vcRedistFile
         }
         "DirectX" {
@@ -171,6 +173,14 @@ function Test-OfflinePackages {
     }
 
     return $false, $null
+}
+
+function Get-VCRedistFileName {
+    $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+    switch ($arch) {
+        'ARM64' { return 'VisualCppRedist_AIO-arm64.exe' }
+        default { return 'VisualCppRedist_AIO_x86_x64.exe' }
+    }
 }
 
 function Get-LatestReleaseUrl {
@@ -236,6 +246,8 @@ function Download {
 function Install-VCRedist {
     Write-Output "Installing Visual C++ Redistributables..."
 
+    $vcRedistFileName = Get-VCRedistFileName
+
     # Check for offline package
     $offlineExists, $offlinePath = Test-OfflinePackages -PackageName "VCRedist"
     $vcRedistInstaller = $null
@@ -284,7 +296,7 @@ foreach(`$drive in `$isoDrives) {
 
             # Check for VCRedist in the WinApps directory
             if ($ISOFound) {
-                $vcRedistPath = Join-Path $WinAppsDir "VisualCppRedist_AIO_x86_x64.exe"
+                $vcRedistPath = Join-Path $WinAppsDir $vcRedistFileName
                 if (Test-Path $vcRedistPath) {
                     Write-Output "Found VCRedist package in ISO WinApps directory: $vcRedistPath"
                     $vcRedistInstaller = $vcRedistPath
@@ -297,7 +309,7 @@ foreach(`$drive in `$isoDrives) {
         } else {
             # If we have internet, try downloading as usual
             Write-Output "Downloading Visual C++ Redistributables..."
-            $vcRedistUrl = Get-LatestReleaseUrl -RepoUrl "https://api.github.com/repos/abbodi1406/vcredist" -FilePattern "VisualCppRedist_AIO_x86_x64.exe"
+            $vcRedistUrl = Get-LatestReleaseUrl -RepoUrl "https://api.github.com/repos/abbodi1406/vcredist" -FilePattern $vcRedistFileName
             if ($null -eq $vcRedistUrl) {
                 throw "Failed to get the latest Visual C++ Redistributables URL."
             }
@@ -310,7 +322,7 @@ foreach(`$drive in `$isoDrives) {
                 throw "Failed to download Visual C++ Redistributables."
             }
 
-            $vcRedistInstaller = "$tempDir\VisualCppRedist_AIO_x86_x64.exe"
+            $vcRedistInstaller = "$tempDir\$vcRedistFileName"
         }
     }
 
