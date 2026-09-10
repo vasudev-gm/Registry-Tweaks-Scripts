@@ -79,8 +79,8 @@ function Optimize-WimImage {
             return
         }
     }
-    $WimTemp = [IO.Path]::GetDirectoryName($WimPath) + '\temp.wim'
-    $allImages = Get-WindowsImage -ImagePath $WimPath
+    $WimTemp = Join-Path ([IO.Path]::GetDirectoryName($WimPath)) ("install_{0}.tmp.wim" -f [guid]::NewGuid())
+    $allImages = @(Get-WindowsImage -ImagePath $WimPath -ErrorAction Stop)
     if ($Indexes -and $Indexes.Count -gt 0) {
         $exportIndexes = $Indexes
     }
@@ -89,18 +89,20 @@ function Optimize-WimImage {
     }
     try {
         foreach ($i in $exportIndexes) {
-            Export-WindowsImage -SourceImagePath $WimPath -SourceIndex $i -CheckIntegrity -DestinationImagePath $WimTemp
+            Export-WindowsImage -SourceImagePath $WimPath -SourceIndex $i -CheckIntegrity -DestinationImagePath $WimTemp -ErrorAction Stop
         }
-        if (Test-Path $WimTemp) {
+        $verifiedImages = @(Get-WindowsImage -ImagePath $WimTemp -ErrorAction Stop)
+        if ((Test-Path $WimTemp) -and ($verifiedImages.Count -eq $exportIndexes.Count)) {
             Move-Item -Path $WimTemp -Destination $WimPath -Force
             Write-Host "Optimized WIM has replaced original install.wim" -ForegroundColor Green
         }
         else {
-            Write-Host "WIM optimization failed: temp.wim not found." -ForegroundColor Red
+            throw "WIM verification failed: expected $($exportIndexes.Count) image(s), found $($verifiedImages.Count)."
         }
     }
     catch {
-        Write-Host "Export failed or was interrupted. Cleaning up temp.wim..." -ForegroundColor Red
+        $script:errorsFound = $true
+        Write-Host "Export or verification failed. Cleaning up temporary WIM... ${_}" -ForegroundColor Red
         if (Test-Path $WimTemp) { Remove-Item -Path $WimTemp -Force }
     }
 }
@@ -123,8 +125,8 @@ function Optimize-BootWimImage {
             return
         }
     }
-    $bootWimTemp = [IO.Path]::GetDirectoryName($BootWimPath) + '\boot_temp.wim'
-    $allImages = Get-WindowsImage -ImagePath $BootWimPath
+    $bootWimTemp = Join-Path ([IO.Path]::GetDirectoryName($BootWimPath)) ("boot_{0}.tmp.wim" -f [guid]::NewGuid())
+    $allImages = @(Get-WindowsImage -ImagePath $BootWimPath -ErrorAction Stop)
     if ($Indexes -and $Indexes.Count -gt 0) {
         $exportIndexes = $Indexes
     }
@@ -133,18 +135,20 @@ function Optimize-BootWimImage {
     }
     try {
         foreach ($i in $exportIndexes) {
-            Export-WindowsImage -SourceImagePath $BootWimPath -SourceIndex $i -CheckIntegrity -DestinationImagePath $bootWimTemp
+            Export-WindowsImage -SourceImagePath $BootWimPath -SourceIndex $i -CheckIntegrity -DestinationImagePath $bootWimTemp -ErrorAction Stop
         }
-        if (Test-Path $bootWimTemp) {
+        $verifiedImages = @(Get-WindowsImage -ImagePath $bootWimTemp -ErrorAction Stop)
+        if ((Test-Path $bootWimTemp) -and ($verifiedImages.Count -eq $exportIndexes.Count)) {
             Move-Item -Path $bootWimTemp -Destination $BootWimPath -Force
             Write-Host "Optimized boot.wim has replaced original boot.wim" -ForegroundColor Green
         }
         else {
-            Write-Host "boot.wim optimization failed: boot_temp.wim not found." -ForegroundColor Red
+            throw "boot.wim verification failed: expected $($exportIndexes.Count) image(s), found $($verifiedImages.Count)."
         }
     }
     catch {
-        Write-Host "boot.wim export failed or was interrupted. Cleaning up boot_temp.wim..." -ForegroundColor Red
+        $script:errorsFound = $true
+        Write-Host "boot.wim export or verification failed. Cleaning up temporary WIM... ${_}" -ForegroundColor Red
         if (Test-Path $bootWimTemp) { Remove-Item -Path $bootWimTemp -Force }
     }
 }
@@ -850,6 +854,10 @@ function Cleanup-WimMounts {
     $oldWimMounts = Get-ChildItem -Path $env:TEMP -Directory -Filter 'WimMount_*' -ErrorAction SilentlyContinue
     foreach ($wm in $oldWimMounts) {
         try {
+            $mountedImage = @(Get-WindowsImage -Mounted -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $wm.FullName })
+            if ($mountedImage.Count -gt 0) {
+                Discard-Image -MountPath $wm.FullName
+            }
             Remove-Item -Path $wm.FullName -Recurse -Force -ErrorAction Stop
             Write-Host "Removed old WimMount folder: $($wm.FullName)" -ForegroundColor DarkGray
         }
@@ -928,25 +936,28 @@ function convert-ESDWIM {
         }
     }
     $wimPath = [IO.Path]::GetDirectoryName($EsdPath) + '\install.wim'
-    $count = (Get-WindowsImage -ImagePath $EsdPath).Count
+    $sourceImages = @(Get-WindowsImage -ImagePath $EsdPath -ErrorAction Stop)
+    $count = $sourceImages.Count
+    $wimTemp = Join-Path ([IO.Path]::GetDirectoryName($EsdPath)) ("install_{0}.tmp.wim" -f [guid]::NewGuid())
     try {
         for ($i = 1; $i -le $count; $i++) {
             $dismArgs = @(
                 "/Export-Image",
                 "/SourceImageFile:$EsdPath",
                 "/SourceIndex:$i",
-                "/DestinationImageFile:$wimPath",
+                "/DestinationImageFile:$wimTemp",
                 "/Compress:max",
                 "/CheckIntegrity"
             )
             Write-Host "Running: dism.exe $($dismArgs -join ' ')" -ForegroundColor Cyan
             $proc = Start-Process -FilePath dism.exe -ArgumentList $dismArgs -NoNewWindow -Wait -PassThru
             if ($proc.ExitCode -ne 0) {
-                Write-Host "dism.exe export failed for index $i with exit code $($proc.ExitCode)" -ForegroundColor Red
-                return
+                throw "dism.exe export failed for index $i with exit code $($proc.ExitCode)."
             }
         }
-        if (Test-Path $wimPath) {
+        $verifiedImages = @(Get-WindowsImage -ImagePath $wimTemp -ErrorAction Stop)
+        if ((Test-Path $wimTemp) -and ($verifiedImages.Count -eq $count)) {
+            Move-Item -Path $wimTemp -Destination $wimPath -Force
             Write-Host "Converted WIM has been created: $wimPath" -ForegroundColor Green
             # Delete original install.esd after successful WIM conversion
             try {
@@ -958,11 +969,13 @@ function convert-ESDWIM {
             }
         }
         else {
-            Write-Host "WIM export failed: install.wim not found." -ForegroundColor Red
+            throw "WIM conversion verification failed: expected $count image(s), found $($verifiedImages.Count)."
         }
     }
     catch {
-        Write-Host "dism.exe export failed or was interrupted." -ForegroundColor Red
+        $script:errorsFound = $true
+        Write-Host "dism.exe export or verification failed. Cleaning up temporary WIM... ${_}" -ForegroundColor Red
+        if (Test-Path $wimTemp) { Remove-Item -Path $wimTemp -Force }
     }
 }
 
@@ -1158,7 +1171,10 @@ function Commit-Wim {
 function Run-DismRemove {
     param([string]$MountPath, [string]$Option)
     Write-Host "Running: dism /image:'$MountPath' $Option"
-    dism /image:"$MountPath" $Option
+    & dism.exe "/image:$MountPath" $Option
+    if ($LASTEXITCODE -ne 0) {
+        throw "DISM removal '$Option' failed with exit code $LASTEXITCODE."
+    }
 }
 
 function Get-ImageBuildNumber {
@@ -1465,7 +1481,8 @@ function Optimize-ESD {
         }
     }
     $esdPath = [IO.Path]::GetDirectoryName($WimPath) + '\install.esd'
-    $allImages = Get-WindowsImage -ImagePath $WimPath
+    $esdTemp = Join-Path ([IO.Path]::GetDirectoryName($WimPath)) ("install_{0}.tmp.esd" -f [guid]::NewGuid())
+    $allImages = @(Get-WindowsImage -ImagePath $WimPath -ErrorAction Stop)
     if ($Indexes -and $Indexes.Count -gt 0) {
         $exportIndexes = $Indexes
     }
@@ -1478,18 +1495,19 @@ function Optimize-ESD {
                 "/Export-Image",
                 "/SourceImageFile:$WimPath",
                 "/SourceIndex:$i",
-                "/DestinationImageFile:$esdPath",
+                "/DestinationImageFile:$esdTemp",
                 "/Compress:recovery",
                 "/CheckIntegrity"
             )
             Write-Host "Running: dism.exe $($dismArgs -join ' ')" -ForegroundColor Cyan
             $proc = Start-Process -FilePath dism.exe -ArgumentList $dismArgs -NoNewWindow -Wait -PassThru
             if ($proc.ExitCode -ne 0) {
-                Write-Host "dism.exe export failed for index $i with exit code $($proc.ExitCode)" -ForegroundColor Red
-                return
+                throw "dism.exe export failed for index $i with exit code $($proc.ExitCode)."
             }
         }
-        if (Test-Path $esdPath) {
+        $verifiedImages = @(Get-WindowsImage -ImagePath $esdTemp -ErrorAction Stop)
+        if ((Test-Path $esdTemp) -and ($verifiedImages.Count -eq $exportIndexes.Count)) {
+            Move-Item -Path $esdTemp -Destination $esdPath -Force
             Write-Host "Optimized ESD has been created: $esdPath" -ForegroundColor Green
             # Delete original install.wim after successful ESD conversion
             try {
@@ -1501,11 +1519,13 @@ function Optimize-ESD {
             }
         }
         else {
-            Write-Host "ESD export failed: install.esd not found." -ForegroundColor Red
+            throw "ESD verification failed: expected $($exportIndexes.Count) image(s), found $($verifiedImages.Count)."
         }
     }
     catch {
-        Write-Host "dism.exe export failed or was interrupted." -ForegroundColor Red
+        $script:errorsFound = $true
+        Write-Host "dism.exe export or verification failed. Cleaning up temporary ESD... ${_}" -ForegroundColor Red
+        if (Test-Path $esdTemp) { Remove-Item -Path $esdTemp -Force }
     }
 }
 
