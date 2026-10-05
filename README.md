@@ -4,7 +4,7 @@ Custom registry tweaks and scripts for building lightweight Windows 10/11 ISOs.
 
 ## Edge Removal Scripts (Primary)
 
-This repository\'s main feature is my custom Microsoft Edge removal scripts for Windows 10 and Windows 11 images, including 23H2/24H2/25H2 setups including arm64.
+This repository\'s main feature is my custom Microsoft Edge removal scripts for Windows 10 22H2 and Windows 11 images, including 23H2/24H2/25H2/26H2 setups including arm64.
 
 - [Remove-Edge-ISO.ps1](Remove-Edge-ISO.ps1)
 - [Remove-Edge-ISO-GUI.ps1](Remove-Edge-ISO-GUI.ps1)
@@ -64,7 +64,7 @@ UWP Bloatware list from [Edugeek Forum][def14]
 
 Svchost Split Threshold tweak for Windows 10 and 11 [Service_Split][def15]
 
-To be more effective, use the unattended xml file for best experience. It supports arm64 and amd64 architectures. The files are separated due to conX setup aka New Installer UX in Windows 11 24H2 and later version which doesn't play well x86/x86A_64 combined architectures in a single file. I have also added some tweaks to the unattended xml file to optimize the installation process and remove some unnecessary features. [Unattended XML File Generator][def16]
+> To be more effective, use the unattended xml file for best experience. It supports arm64 and amd64 architectures. The files are separated due to conX setup aka New Installer UX in Windows 11 24H2 and later versions which doesn\'t play well x86/x86A_64 combined architectures in a single file. I have also added some tweaks to the unattended xml file to optimize the installation process and remove some unnecessary features. [Unattended XML File Generator][def16]
 
 Thanks to abbodi1406, htfx, exurd, emil, Shawn Brink, ShadowWhisperer, Schneegans and ThioJoe for scripts and repacks
 
