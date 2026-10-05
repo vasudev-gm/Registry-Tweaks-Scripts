@@ -827,7 +827,7 @@ function Get-WimEditions {
 # Mount offline WIM image for servicing
 function Mount-Wim {
     param([string]$WimPath, [int]$Index, [string]$MountPath)
-    Mount-WindowsImage -ImagePath $WimPath -Index $Index -Path $MountPath -CheckIntegrity -Optimize -ErrorAction Stop
+    Mount-WindowsImage -ImagePath $WimPath -Index $Index -Path $MountPath -CheckIntegrity -ErrorAction Stop
 }
 
 # Commit changes and unmount WIM image with proper integrity checks
