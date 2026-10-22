@@ -1,4 +1,4 @@
-# Edge Removal Script for Windows 11 ISO (PowerShell 7+) version 0.1.3
+# Edge Removal Script for Windows 11 ISO (PowerShell 7+) version 0.2.0
 # Disclaimer: Use at your own risk. Always back up your data before making system changes. Please be advised if you use Edge Browser and WebView components,
 # the script is not intended for such use cases as removing them does not make sense
 
@@ -840,8 +840,13 @@ function Run-DismRemove {
     param([string]$MountPath, [string]$Option)
     Write-Host "Running: dism /image:'$MountPath' $Option"
     & dism.exe "/image:$MountPath" $Option
-    if ($LASTEXITCODE -ne 0) {
-        throw "DISM removal '$Option' failed with exit code $LASTEXITCODE."
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -eq 2 -and $Option -in @("/Remove-Edge", "/Remove-EdgeBrowser", "/Remove-EdgeWebView")) {
+        Write-Host "DISM returned exit code 2 for '$Option'; assuming the component is already absent and continuing." -ForegroundColor Yellow
+        return
+    }
+    if ($exitCode -ne 0) {
+        throw "DISM removal '$Option' failed with exit code $exitCode."
     }
 }
 
@@ -889,6 +894,26 @@ function Remove-Win10EdgeProgramFilesFallback {
             Write-Host "Removed Windows 10 Edge fallback folder using cmd: $edgeMicrosoftPath" -ForegroundColor Green
         }
     }
+}
+
+function Remove-EdgeFromImage {
+    param(
+        [string]$WimPath,
+        [int]$Index,
+        [string]$MountPath,
+        [string]$DismOption
+    )
+
+    $buildNumber = Get-ImageBuildNumber -WimPath $WimPath -Index $Index
+    if ($null -ne $buildNumber -and $buildNumber -lt 22000) {
+        Write-Host "DISM $DismOption is not supported on Windows 10; using the file-removal fallback." -ForegroundColor Yellow
+    }
+    else {
+        Run-DismRemove -MountPath $MountPath -Option $DismOption
+    }
+
+    Remove-Win10EdgeProgramFilesFallback -MountPath $MountPath -BuildNumber $buildNumber
+    return $buildNumber
 }
 
 function Get-SafeAppxPatterns {
@@ -1291,14 +1316,10 @@ function Process-Edition {
         switch ($choice) {
             '0' { Write-Host "Operation cancelled by user." -ForegroundColor Yellow; exit 0 }
             '1' {
-                Run-DismRemove -MountPath $mountPath -Option "/Remove-Edge"
-                $buildNumber = Get-ImageBuildNumber -WimPath $WimPath -Index $idx
-                Remove-Win10EdgeProgramFilesFallback -MountPath $mountPath -BuildNumber $buildNumber
+                Remove-EdgeFromImage -WimPath $WimPath -Index $idx -MountPath $mountPath -DismOption "/Remove-Edge"
             }
             '2' {
-                Run-DismRemove -MountPath $mountPath -Option "/Remove-EdgeBrowser"
-                $buildNumber = Get-ImageBuildNumber -WimPath $WimPath -Index $idx
-                Remove-Win10EdgeProgramFilesFallback -MountPath $mountPath -BuildNumber $buildNumber
+                Remove-EdgeFromImage -WimPath $WimPath -Index $idx -MountPath $mountPath -DismOption "/Remove-EdgeBrowser"
             }
             '3' { Run-DismRemove -MountPath $mountPath -Option "/Remove-EdgeWebView" }
             '7' {
@@ -1307,9 +1328,7 @@ function Process-Edition {
                 Remove-SafeProvisionedAppx -MountPath $mountPath -Patterns $safePatterns
             }
             '9' {
-                Run-DismRemove -MountPath $mountPath -Option "/Remove-Edge"
-                $buildNumber = Get-ImageBuildNumber -WimPath $WimPath -Index $idx
-                Remove-Win10EdgeProgramFilesFallback -MountPath $mountPath -BuildNumber $buildNumber
+                $buildNumber = Remove-EdgeFromImage -WimPath $WimPath -Index $idx -MountPath $mountPath -DismOption "/Remove-Edge"
                 $safePatterns = Get-SafeAppxPatterns -BuildNumber $buildNumber
                 Remove-SafeProvisionedAppx -MountPath $mountPath -Patterns $safePatterns
             }

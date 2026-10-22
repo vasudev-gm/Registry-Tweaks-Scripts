@@ -11,6 +11,8 @@ This repository\'s main feature is my custom Microsoft Edge removal scripts for 
 
 These scripts use DISM to remove Edge and related dependencies, clean Start menu/taskbar shortcuts, remove selected UWP apps, and optimize image files (`install.wim` and `boot.wim`) for a smaller ISO footprint.
 
+For Windows 10 images, Edge removal options use a file-removal fallback because DISM Edge-removal options are not supported on Windows 10. The fallback removes the `Program Files (x86)\Microsoft` directory tree, including EdgeUpdate. Exit code 2 from DISM for Edge, Edge Browser, or Edge WebView removal is treated as an already-absent component and logged as a warning; other nonzero exit codes still fail the operation.
+
 If you are searching for a Windows 10/11 Edge removal script for custom ISO builds, start with the scripts above.
 
 ### Which Script Should I Use?
