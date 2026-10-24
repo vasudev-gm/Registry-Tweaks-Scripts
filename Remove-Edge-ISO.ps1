@@ -839,7 +839,7 @@ function Commit-Wim {
 function Run-DismRemove {
     param([string]$MountPath, [string]$Option)
     Write-Host "Running: dism /image:'$MountPath' $Option"
-    & dism.exe "/image:$MountPath" $Option
+    & dism.exe "/image:$MountPath" $Option | Out-Host
     $exitCode = $LASTEXITCODE
     if ($exitCode -eq 2 -and $Option -in @("/Remove-Edge", "/Remove-EdgeBrowser", "/Remove-EdgeWebView")) {
         Write-Host "DISM returned exit code 2 for '$Option'; assuming the component is already absent and continuing." -ForegroundColor Yellow
@@ -1321,7 +1321,7 @@ function Process-Edition {
             '2' {
                 Remove-EdgeFromImage -WimPath $WimPath -Index $idx -MountPath $mountPath -DismOption "/Remove-EdgeBrowser"
             }
-            '3' { Run-DismRemove -MountPath $mountPath -Option "/Remove-EdgeWebView" }
+            '3' { Remove-EdgeFromImage -WimPath $WimPath -Index $idx -MountPath $mountPath -DismOption "/Remove-EdgeWebView" }
             '7' {
                 $buildNumber = Get-ImageBuildNumber -WimPath $WimPath -Index $idx
                 $safePatterns = Get-SafeAppxPatterns -BuildNumber $buildNumber
