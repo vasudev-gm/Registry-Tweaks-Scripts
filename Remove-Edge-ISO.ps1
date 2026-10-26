@@ -312,6 +312,8 @@ function Get-DefaultIsoFileName {
         param([int]$BuildNumber)
 
         # Known build-to-release mapping used for ISO naming.
+        if ($BuildNumber -ge 26300) { return '26H2' }
+        if ($BuildNumber -ge 28000) { return '26H1' }
         if ($BuildNumber -ge 26200) { return '25H2' }
         if ($BuildNumber -ge 26100) { return '24H2' }
         if ($BuildNumber -ge 22631) { return '23H2' }
